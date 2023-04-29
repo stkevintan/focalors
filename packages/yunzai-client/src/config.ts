@@ -1,5 +1,5 @@
 import { singleton } from "tsyringe";
-import { FriendInfo, GroupInfo } from "./types";
+import { Protocol } from "./types";
 
 @singleton()
 export class Configuration {
@@ -17,9 +17,10 @@ export class Configuration {
         get endpoint() {
             return `${this.proto}://${this.host}:${this.port}${this.path}`;
         },
+        idleTimeout: 10 * 1000,
     };
 
-    readonly friends: FriendInfo[] = [
+    readonly friends: Protocol.FriendInfo[] = [
         {
             user_id: "10010",
             user_displayname: "User",
@@ -29,5 +30,5 @@ export class Configuration {
         },
     ];
 
-    readonly groups: GroupInfo[] = [];
+    readonly groups: Protocol.GroupInfo[] = [];
 }

@@ -1,13 +1,14 @@
-import { Configuration } from "../config";
-import { ActionRouteHandler, GetStatusAction, PromiseOrNot } from "src/types";
-import { inject, singleton } from "tsyringe";
+import { Protocol, PromiseOrNot, Configuration } from "@focalors/yunzai-client";
+import { inject, injectable } from "tsyringe";
 
-@singleton()
+@injectable()
 export class GetStatusRouteHandler
-    implements ActionRouteHandler<GetStatusAction>
+    implements Protocol.ActionRouteHandler<Protocol.GetStatusAction>
 {
     constructor(@inject(Configuration) private configuration: Configuration) {}
-    handle(req: GetStatusAction[0]): PromiseOrNot<GetStatusAction[1]> {
+    handle(
+        req: Protocol.GetStatusAction[0]
+    ): PromiseOrNot<Protocol.GetStatusAction[1]> {
         return {
             echo: req.echo,
             data: {

@@ -1,0 +1,21 @@
+{
+    "name": "@focalors/wechat-bridge",
+    "bin": {
+        "focalors-wechat": "./bin/focalors-wechat.js"
+    },
+    "main": "./dist/index.js",
+    "version": "0.0.0",
+    "scripts": {
+        "watch": "tsc -p tsconfig.json -w",
+        "build": "tsc -p tsconfig.json"
+    },
+    "dependencies": {
+        "reflect-metadata": "^0.1.13",
+        "tslib": "^2.5.0",
+        "tsyringe": "^4.7.0"
+    },
+    "devDependencies": {
+        "@focalors/yunzai-client": "workspace:*",
+        "typescript": "^4.9.5"
+    }
+}

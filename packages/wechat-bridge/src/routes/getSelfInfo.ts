@@ -1,14 +1,15 @@
-import { Configuration } from "../config";
-import { ActionRouteHandler, GetSelfInfoAction, PromiseOrNot } from "src/types";
-import { inject, singleton } from "tsyringe";
+import { Configuration, PromiseOrNot, Protocol } from "@focalors/yunzai-client";
+import { inject, injectable } from "tsyringe";
 
-@singleton()
+@injectable()
 export class GetSelfInfoRouteHandler
-    implements ActionRouteHandler<GetSelfInfoAction>
+    implements Protocol.ActionRouteHandler<Protocol.GetSelfInfoAction>
 {
     constructor(@inject(Configuration) private configuration: Configuration) {}
     readonly action = "get_self_info";
-    handle(req: GetSelfInfoAction[0]): PromiseOrNot<GetSelfInfoAction[1]> {
+    handle(
+        req: Protocol.GetSelfInfoAction[0]
+    ): PromiseOrNot<Protocol.GetSelfInfoAction[1]> {
         return {
             echo: req.echo,
             data: {

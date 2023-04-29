@@ -1,4 +1,5 @@
 export class Defer<T> {
+    constructor() {}
     private resolver?: (x: T) => void;
     private rejecter?: (err: unknown) => void;
     private completed = false;

@@ -1,9 +1,9 @@
 import { GetStatusRouteHandler } from "./getStatus";
-import { container } from "tsyringe";
-import { TOKENS } from "../tokens";
 import { GetSelfInfoRouteHandler } from "./getSelfInfo";
 import { GetFriendListRouteHandler } from "./getFriendList";
 import { GetGroupListRouteHandler } from "./getGroupList";
+
+import { container, TOKENS } from "@focalors/yunzai-client";
 
 [
     GetSelfInfoRouteHandler,

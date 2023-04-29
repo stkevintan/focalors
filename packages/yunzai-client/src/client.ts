@@ -2,31 +2,48 @@ import ws from "ws";
 import { inject, injectable, injectAll } from "tsyringe";
 import { randomInt, randomUUID } from "crypto";
 import { promisify } from "util";
-import { TOKENS } from "./tokens";
 
-import { Event, Action, ActionRouteHandler } from "./types";
+import { TOKENS } from "./tokens";
+import { Protocol } from "./types";
 import { Configuration } from "./config";
 import { Defer } from "./utils/defer";
+import { logger } from "./logger";
 
 @injectable()
 export class YunzaiClient {
     private client?: ws;
-    private handlerMap = new Map<string, ActionRouteHandler[]>();
+    private handlerMap = new Map<string, Protocol.ActionRouteHandler[]>();
     private idleDefer = new Defer<void>();
-
-    async waitForIdle() {
-        await this.idleDefer.promise;
-    }
 
     constructor(
         @inject(Configuration) private configuration: Configuration,
-        @injectAll(TOKENS.routes) private handlers: ActionRouteHandler[]
+        @injectAll(TOKENS.routes)
+        private handlers: Protocol.ActionRouteHandler[]
     ) {
         this.register();
     }
-    async run() {
+    async run(): Promise<void> {
         this.client = new ws(this.configuration.ws.endpoint);
-        await new Promise((res) => this.client!.once("open", res));
+        await this.listen(this.client);
+        await new Promise((res) => this.client?.once("open", res));
+        await this.ping();
+        setTimeout(() => {
+            this.idleDefer.reject(
+                new Error(
+                    `Timeout for idle state after ${this.configuration.ws.idleTimeout}ms`
+                )
+            );
+        }, this.configuration.ws.idleTimeout);
+        await this.idleDefer.promise;
+    }
+
+    private register() {
+        for (const handler of this.handlers) {
+            this.route(handler);
+        }
+    }
+
+    private async ping() {
         await this.send({
             id: randomUUID(),
             type: "meta",
@@ -43,22 +60,16 @@ export class YunzaiClient {
                 onebot_version: "12",
             },
         });
-        return this.listen();
     }
 
-    private register() {
-        for (const handler of this.handlers) {
-            this.route(handler);
-        }
+    private async listen(client: ws) {
+        // bind messages
+        const messageHandler = this.handleIncomingMessage.bind(this);
+        client.on("message", messageHandler);
+        return () => client.off("message", messageHandler);
     }
 
-    listen() {
-        const fn = this.handleIncomingMessage.bind(this);
-        this.client?.on("message", fn);
-        return () => this.client?.off("message", fn);
-    }
-
-    route<T extends ActionRouteHandler>(handler: T): () => void {
+    route<T extends Protocol.ActionRouteHandler>(handler: T): () => void {
         if (!this.handlerMap.has(handler.action)) {
             this.handlerMap.set(handler.action, []);
         }
@@ -75,7 +86,7 @@ export class YunzaiClient {
         };
     }
 
-    async send(event: Event | Action[1]): Promise<void> {
+    async send(event: Protocol.Event | Protocol.Action[1]): Promise<void> {
         if (this.client) {
             const send = promisify(this.client.send.bind(this.client));
             await send(JSON.stringify(event));
@@ -86,14 +97,15 @@ export class YunzaiClient {
         if (!data) {
             throw new Error("empty message received");
         }
-        console.log("received: %s", data);
-        const req = JSON.parse(String(data)) as Action[0];
+        logger.trace(`received raw data: ${data}`);
+        const req = JSON.parse(String(data)) as Protocol.Action[0];
         if (null === req || typeof req !== "object") {
             throw new Error("Unexpected message received");
         }
+        logger.info(`incoming request:`, req);
         if (this.handlerMap.has(req.action)) {
             const handlers = this.handlerMap.get(req.action)!;
-            console.log(`find %d handlers`, handlers.length);
+            logger.debug(`find ${handlers.length} handlers`);
             await Promise.all(
                 handlers.map(async (handler) => {
                     try {
@@ -107,7 +119,7 @@ export class YunzaiClient {
                         if (req.action === "get_group_list") {
                             this.idleDefer.reject(err);
                         }
-                        console.error(err);
+                        logger.error(err);
                     }
                 })
             );
