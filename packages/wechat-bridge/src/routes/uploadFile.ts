@@ -1,7 +1,17 @@
-// import { ActionReq, ActionRes, ActionRouteHandler, PromiseOrNot, UploadFileAction } from "src/types";
+import { Protocol } from "@focalors/yunzai-client";
 
-// export class UploadFileRouteHandler implements ActionRouteHandler<UploadFileAction> {
-//     action: "upload_file";
-//     handle: (req: ActionReq<"upload_file", UploadFileAction>) => PromiseOrNot<ActionRes<{ file_id: string; }>>;
-    
-// }
+export class UploadFileRouteHandler
+    implements Protocol.ActionRouteHandler<Protocol.UploadFileAction>
+{
+    readonly action = "upload_file";
+    async handle(
+        req: Protocol.UploadFileAction[0]
+    ): Promise<Protocol.UploadFileAction[1]> {
+        return {
+            echo: req.echo,
+            data: {
+                file_id: "fake_file_id",
+            },
+        };
+    }
+}

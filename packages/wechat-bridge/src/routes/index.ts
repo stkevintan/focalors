@@ -2,14 +2,12 @@ import { GetStatusRouteHandler } from "./getStatus";
 import { GetSelfInfoRouteHandler } from "./getSelfInfo";
 import { GetFriendListRouteHandler } from "./getFriendList";
 import { GetGroupListRouteHandler } from "./getGroupList";
+import { UploadFileRouteHandler } from "./uploadFile";
 
-import { container, TOKENS } from "@focalors/yunzai-client";
-
-[
-    GetSelfInfoRouteHandler,
+export const handlers = [
     GetStatusRouteHandler,
+    GetSelfInfoRouteHandler,
     GetFriendListRouteHandler,
     GetGroupListRouteHandler,
-].map((handler) => {
-    container.register<any>(TOKENS.routes, { useClass: handler });
-});
+    UploadFileRouteHandler,
+] as const;
