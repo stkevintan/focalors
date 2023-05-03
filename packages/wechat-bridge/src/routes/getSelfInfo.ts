@@ -1,21 +1,22 @@
-import { Configuration, PromiseOrNot, Protocol } from "@focalors/yunzai-client";
+import { Protocol } from "@focalors/yunzai-client";
+import { TOKENS } from "src/tokens";
 import { inject, injectable } from "tsyringe";
+import { Wechaty } from "wechaty";
 
 @injectable()
 export class GetSelfInfoRouteHandler
     implements Protocol.ActionRouteHandler<Protocol.GetSelfInfoAction>
 {
-    constructor(@inject(Configuration) private configuration: Configuration) {}
+    constructor(@inject(TOKENS.wechaty) private bot: Wechaty) {}
     readonly action = "get_self_info";
-    handle(
-        req: Protocol.GetSelfInfoAction[0]
-    ): PromiseOrNot<Protocol.GetSelfInfoAction[1]> {
+    handle(req: Protocol.GetSelfInfoAction[0]): Protocol.GetSelfInfoAction[1] {
+        const user = this.bot.currentUser;
         return {
             echo: req.echo,
             data: {
-                user_id: this.configuration.user.id,
-                user_name: this.configuration.user.name,
-                user_displayname: this.configuration.user.displayName,
+                user_id: user.id,
+                user_name: user.name(),
+                user_displayname: "",
             },
         };
     }

@@ -62,8 +62,8 @@ export interface WxEmojiMessageSegment {
     };
 }
 
-export interface MetionMessageSegment {
-    type: "metion";
+export interface MentionMessageSegment {
+    type: "mention";
     data: {
         user_id: string;
     };
@@ -86,7 +86,7 @@ export interface ReplyMessageSegment {
 
 export type MessageSegment =
     | TextMessageSegment
-    | MetionMessageSegment
+    | MentionMessageSegment
     | ImageMessageSegment
     | ReplyMessageSegment
     | WxEmojiMessageSegment;
@@ -97,7 +97,7 @@ export type Event = MetaEvent | MessageEvent;
 export interface ActionReq<Action extends string, Param = unknown> {
     action: Action;
     echo: string;
-    params?: Param;
+    params: Param;
 }
 
 export interface ActionRes<Data> {
@@ -153,9 +153,28 @@ export interface GroupInfo {
 
 // https://justundertaker.github.io/ComWeChatBotClient/action/file.html#%E4%B8%8A%E4%BC%A0%E6%96%87%E4%BB%B6
 export type UploadFileAction = Action<
-    ActionReq<"upload_file", UploadFileAction>,
+    ActionReq<
+        "upload_file",
+        FileTrait & { name: string; headers?: Record<string, string> }
+    >,
     ActionRes<{ file_id: string }>
 >;
+
+interface UrlFileTrait {
+    type: "url";
+    url: string;
+}
+interface PathFileTrait {
+    type: "path";
+    path: string;
+}
+
+interface DataFileTrait {
+    type: "data";
+    data: string;
+}
+
+type FileTrait = UrlFileTrait | PathFileTrait | DataFileTrait;
 
 // https://justundertaker.github.io/ComWeChatBotClient/action/message.html#%E5%8F%91%E9%80%81%E6%B6%88%E6%81%AF
 

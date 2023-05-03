@@ -1,14 +1,14 @@
-import { Protocol, PromiseOrNot, Configuration } from "@focalors/yunzai-client";
+import { Protocol, PromiseOrNot } from "@focalors/yunzai-client";
+import { TOKENS } from "src/tokens";
 import { inject, injectable } from "tsyringe";
+import { Wechaty } from "wechaty";
 
 @injectable()
 export class GetStatusRouteHandler
     implements Protocol.ActionRouteHandler<Protocol.GetStatusAction>
 {
-    constructor(@inject(Configuration) private configuration: Configuration) {}
-    handle(
-        req: Protocol.GetStatusAction[0]
-    ): PromiseOrNot<Protocol.GetStatusAction[1]> {
+    constructor(@inject(TOKENS.wechaty) private bot: Wechaty) {}
+    handle(req: Protocol.GetStatusAction[0]): Protocol.GetStatusAction[1] {
         return {
             echo: req.echo,
             data: {
@@ -18,7 +18,7 @@ export class GetStatusRouteHandler
                         online: true,
                         self: {
                             platform: "wechat",
-                            user_id: this.configuration.user.id,
+                            user_id: this.bot.currentUser.id,
                         },
                     },
                 ],

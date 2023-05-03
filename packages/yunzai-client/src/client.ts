@@ -14,6 +14,7 @@ import { MessageSegment } from "./types/comwechat";
 export class YunzaiClient {
     private client?: ws;
     private _send?: (arg1: any) => Promise<void>;
+    private started = false;
     private handlerMap = new Map<string, Protocol.ActionRouteHandler[]>();
     private idleDefer = new Defer<void>();
 
@@ -25,11 +26,16 @@ export class YunzaiClient {
         this.register();
     }
     async run(): Promise<void> {
+        if (this.started) {
+            return await this.idleDefer.promise;
+        }
+        this.started = true;
         this.client = new ws(this.configuration.ws.endpoint);
         await this.listen(this.client);
         await new Promise((res) => this.client?.once("open", res));
         await this.ping();
         setTimeout(() => {
+            this.started = false;
             this.idleDefer.reject(
                 new Error(
                     `Timeout for idle state after ${this.configuration.ws.idleTimeout}ms`
@@ -174,7 +180,7 @@ function alt(message: MessageSegment) {
             return `<reply ${message.data.message_id}>`;
         case "image":
             return "<image>";
-        case "metion":
+        case "mention":
             return `<metion ${message.data.user_id}>`;
         case "wx.emoji":
             return `<emoji>`;

@@ -2,28 +2,40 @@ import "reflect-metadata";
 import "./routes";
 
 import {
-    runClient,
-    logger,
-    YunzaiClient,
     container,
-    Configuration,
+    Configuration as YunzaiConfiguration,
+    Protocol,
+    YunzaiClient,
 } from "@focalors/yunzai-client";
-import { handlers } from "./routes";
+import { runBot } from "./wechaty";
+import { logger } from "./logger";
+import { Configuration } from "./config";
+
+// override the configuration
+container.registerSingleton(YunzaiConfiguration, Configuration);
 
 export async function run() {
-    const client = await runClient(handlers);
-    logger.info("Client is running...");
-    await test(client);
-}
-
-function delay(ms: number) {
-    return new Promise((res) => setTimeout(res, ms));
-}
-
-async function test(client: YunzaiClient) {
-    const configuration = container.resolve(Configuration);
-    await client.sendMessageEvent(
-        [{ type: "text", data: { text: "帮助" } }],
-        configuration.friends[0].user_id
-    );
+    const bot = await runBot();
+    logger.info("bot started...");
+    const client = container.resolve(YunzaiClient);
+    await client.run();
+    // subscribe bot to client
+    bot.on("message", (message) => {
+        const text = message.text();
+        const segment: Protocol.MessageSegment[] = [
+            {
+                type: "text",
+                data: { text },
+            },
+        ];
+        const roomId = message.room();
+        if (roomId) {
+            void client.sendMessageEvent(segment, roomId.id, "group");
+        }
+        const userId = message.listener();
+        if (userId) {
+            void client.sendMessageEvent(segment, userId.id, "private");
+        }
+    });
+    logger.info("Focalors is running...");
 }
