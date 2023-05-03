@@ -1,7 +1,18 @@
 import { PromiseOrNot } from "./common";
 
 // event
-export interface MessageEvent {
+
+export interface PrivateMessageTarget {
+    detail_type: "private";
+    user_id: string;
+}
+export interface GroupMessageTarget {
+    detail_type: "group";
+    group_id: string;
+}
+export type MessageTarget = GroupMessageTarget | PrivateMessageTarget;
+
+interface MessageEventBase {
     id: string; // uuidv4
     type: "message";
     time: number; // 1682160211.0
@@ -16,8 +27,9 @@ export interface MessageEvent {
     message_id: string;
     message: MessageSegment[];
     alt_message: string;
-    user_id: string;
 }
+
+export type MessageEvent = MessageEventBase & MessageTarget;
 
 export interface MetaEvent {
     id: string;
@@ -36,27 +48,66 @@ export interface MetaEvent {
     };
 }
 
-export interface MessageSegment {
-    type: "text" | "wx.emoji" | "reply" | "image" | "metion";
-    data?: any;
+export interface TextMessageSegment {
+    type: "text";
+    data: {
+        text: string;
+    };
 }
+
+export interface WxEmojiMessageSegment {
+    type: "wx.emoji";
+    data: {
+        file_id: string;
+    };
+}
+
+export interface MetionMessageSegment {
+    type: "metion";
+    data: {
+        user_id: string;
+    };
+}
+
+export interface ImageMessageSegment {
+    type: "image";
+    data: {
+        file_id: string;
+    };
+}
+
+export interface ReplyMessageSegment {
+    type: "reply";
+    data: {
+        message_id: string;
+        user_id: string;
+    };
+}
+
+export type MessageSegment =
+    | TextMessageSegment
+    | MetionMessageSegment
+    | ImageMessageSegment
+    | ReplyMessageSegment
+    | WxEmojiMessageSegment;
 
 export type Event = MetaEvent | MessageEvent;
 
 // actions
-export interface ActionReq<Action extends string, Param extends {} = {}> {
+export interface ActionReq<Action extends string, Param = unknown> {
     action: Action;
     echo: string;
     params?: Param;
 }
+
 export interface ActionRes<Data> {
     echo: string;
     data: Data;
 }
 
-export type ActionCreator<
-    Req extends ActionReq<string>,
-    Res extends ActionRes<{}>
+export type Action<
+    Req extends ActionReq<string> = ActionReq<string>,
+    Res extends ActionRes<any> = ActionRes<any>
 > = [req: Req, res: Res];
 
 export interface BotStatus {
@@ -67,18 +118,18 @@ export interface BotStatus {
     };
 }
 
-export type GetStatusAction = ActionCreator<
+export type GetStatusAction = Action<
     ActionReq<"get_status">,
     ActionRes<{ good: boolean; bots: BotStatus[] }>
 >;
 
-export type GetSelfInfoAction = ActionCreator<
+export type GetSelfInfoAction = Action<
     ActionReq<"get_self_info">,
     ActionRes<{ user_id: string; user_name: string; user_displayname: string }>
 >;
 
 // https://justundertaker.github.io/ComWeChatBotClient/action/private.html#%E8%8E%B7%E5%8F%96%E5%A5%BD%E5%8F%8B%E5%88%97%E8%A1%A8
-export type GetFriendListAction = ActionCreator<
+export type GetFriendListAction = Action<
     ActionReq<"get_friend_list">,
     ActionRes<FriendInfo[]>
 >;
@@ -91,7 +142,7 @@ export interface FriendInfo {
 }
 
 // https://justundertaker.github.io/ComWeChatBotClient/action/group.html#%E8%8E%B7%E5%8F%96%E7%BE%A4%E5%88%97%E8%A1%A8
-export type GetGroupListAction = ActionCreator<
+export type GetGroupListAction = Action<
     ActionReq<"get_group_list">,
     ActionRes<GroupInfo[]>
 >;
@@ -101,9 +152,16 @@ export interface GroupInfo {
 }
 
 // https://justundertaker.github.io/ComWeChatBotClient/action/file.html#%E4%B8%8A%E4%BC%A0%E6%96%87%E4%BB%B6
-export type UploadFileAction = ActionCreator<
+export type UploadFileAction = Action<
     ActionReq<"upload_file", UploadFileAction>,
     ActionRes<{ file_id: string }>
+>;
+
+// https://justundertaker.github.io/ComWeChatBotClient/action/message.html#%E5%8F%91%E9%80%81%E6%B6%88%E6%81%AF
+
+export type SendMessageAction = Action<
+    ActionReq<"send_message", MessageTarget & { message: MessageSegment[] }>,
+    ActionRes<boolean>
 >;
 
 export interface UplaodFileParam {
@@ -113,12 +171,14 @@ export interface UplaodFileParam {
     name: string;
 }
 
-export type Action =
+// https://justundertaker.github.io/ComWeChatBotClient/action/message.html
+export type KnownAction =
     | GetStatusAction
     | GetSelfInfoAction
     | GetFriendListAction
     | GetGroupListAction
-    | UploadFileAction;
+    | UploadFileAction
+    | SendMessageAction;
 
 export interface ActionRouteHandler<T extends Action = Action> {
     action: T[0]["action"];

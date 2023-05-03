@@ -8,10 +8,12 @@ import { Protocol } from "./types";
 import { Configuration } from "./config";
 import { Defer } from "./utils/defer";
 import { logger } from "./logger";
+import { MessageSegment } from "./types/comwechat";
 
 @injectable()
 export class YunzaiClient {
     private client?: ws;
+    private _send?: (arg1: any) => Promise<void>;
     private handlerMap = new Map<string, Protocol.ActionRouteHandler[]>();
     private idleDefer = new Defer<void>();
 
@@ -86,9 +88,13 @@ export class YunzaiClient {
         };
     }
 
-    async send(event: Protocol.Event | Protocol.Action[1]): Promise<void> {
+    async send(
+        event: Protocol.Event | Protocol.ActionRes<unknown>
+    ): Promise<void> {
         if (this.client) {
-            const send = promisify(this.client.send.bind(this.client));
+            const send =
+                this._send ||
+                (this._send = promisify(this.client.send.bind(this.client)));
             await send(JSON.stringify(event));
         }
     }
@@ -98,11 +104,18 @@ export class YunzaiClient {
             throw new Error("empty message received");
         }
         logger.trace(`received raw data: ${data}`);
-        const req = JSON.parse(String(data)) as Protocol.Action[0];
+        const req = JSON.parse(String(data)) as Protocol.KnownAction[0];
         if (null === req || typeof req !== "object") {
             throw new Error("Unexpected message received");
         }
-        logger.info(`incoming request:`, req);
+        if (req.action !== "upload_file") {
+            logger.info(`incoming request:`, req);
+        } else {
+            logger.info(`incoming request:`, {
+                action: req.action,
+                params: { ...req.params, data: "<native>" },
+            });
+        }
         if (this.handlerMap.has(req.action)) {
             const handlers = this.handlerMap.get(req.action)!;
             logger.debug(`find ${handlers.length} handlers`);
@@ -126,31 +139,46 @@ export class YunzaiClient {
         }
     }
 
-    async sendMessageEvent(text: string) {
+    async sendMessageEvent(
+        message: Protocol.MessageSegment[],
+        to: string,
+        kind: "group" | "private" = "private"
+    ) {
         await this.send({
             type: "message",
             id: randomUUID(),
             time: Date.now(),
-            detail_type: "private",
             sub_type: "",
             message_id: "xxxxxxxxxxxxxxx".replace(
                 /x/g,
                 () => `${Math.floor(randomInt(10))}`
             ),
-            message: [
-                {
-                    type: "text",
-                    data: {
-                        text,
-                    },
-                },
-            ],
-            alt_message: text,
+            message,
+            alt_message: message.map(alt).join(" "),
             self: {
                 platform: "wechat",
                 user_id: this.configuration.user.id,
             },
-            user_id: this.configuration.friends[0].user_id,
+            ...(kind === "group"
+                ? { detail_type: "group", group_id: to }
+                : { detail_type: "private", user_id: to }),
         });
+    }
+}
+
+function alt(message: MessageSegment) {
+    switch (message.type) {
+        case "text":
+            return message.data.text;
+        case "reply":
+            return `<reply ${message.data.message_id}>`;
+        case "image":
+            return "<image>";
+        case "metion":
+            return `<metion ${message.data.user_id}>`;
+        case "wx.emoji":
+            return `<emoji>`;
+        default:
+            return `<unknown message>`;
     }
 }

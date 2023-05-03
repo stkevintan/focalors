@@ -7,7 +7,13 @@ import { TOKENS } from "./tokens";
 export { container, YunzaiClient };
 
 export async function runClient(
-    routeHandlers: Readonly<Constructor<Protocol.ActionRouteHandler<any>>[]> = []
+    routeHandlers: Array<
+        Constructor<
+            Protocol.ActionRouteHandler<
+                Protocol.Action<Protocol.ActionReq<any, any>>
+            >
+        >
+    > = []
 ) {
     routeHandlers.map((handler) => container.register(TOKENS.routes, handler));
     const client = container.resolve(YunzaiClient);

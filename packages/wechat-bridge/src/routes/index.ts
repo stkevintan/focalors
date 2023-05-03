@@ -3,6 +3,7 @@ import { GetSelfInfoRouteHandler } from "./getSelfInfo";
 import { GetFriendListRouteHandler } from "./getFriendList";
 import { GetGroupListRouteHandler } from "./getGroupList";
 import { UploadFileRouteHandler } from "./uploadFile";
+import { SendMessageRouteHandler } from "./sendMessage";
 
 export const handlers = [
     GetStatusRouteHandler,
@@ -10,4 +11,5 @@ export const handlers = [
     GetFriendListRouteHandler,
     GetGroupListRouteHandler,
     UploadFileRouteHandler,
-] as const;
+    SendMessageRouteHandler,
+];

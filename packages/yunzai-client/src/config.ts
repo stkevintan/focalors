@@ -3,6 +3,7 @@ import { Protocol } from "./types";
 
 @singleton()
 export class Configuration {
+    // self account
     readonly user = {
         id: "10086",
         name: "administrator",
