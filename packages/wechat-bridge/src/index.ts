@@ -7,7 +7,7 @@ import {
     Configuration as YunzaiConfiguration,
     YunzaiClient,
 } from "@focalors/yunzai-client";
-import { Wechat } from "./wechaty";
+import { Wechat } from "./wechat";
 import { logger } from "./logger";
 import { Configuration } from "./config";
 
@@ -26,7 +26,7 @@ export class Program {
     async start() {
         await this.wechat.run();
         logger.info("wechat is running...");
-        await this.client.run();
+        await this.client.start();
         logger.info("client is running...");
         // bridge wechat and client
         this.wechat.bridge(this.client);

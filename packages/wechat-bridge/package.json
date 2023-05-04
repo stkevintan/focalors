@@ -18,10 +18,11 @@
         "tslog": "^4.8.2",
         "tsyringe": "^4.7.0",
         "wechaty": "^1.20.2",
-        "wechaty-puppet-padlocal": "^1.20.1"
+        "wechaty-puppet-padlocal": "^1.20.1",
+        "@focalors/yunzai-client": "workspace:*",
+        "@focalors/logger": "workspace:*"
     },
     "devDependencies": {
-        "@focalors/yunzai-client": "workspace:*",
         "@types/qrcode-terminal": "^0.12.0",
         "typescript": "^4.9.5",
         "wechaty-puppet-mock": "^1.18.2"

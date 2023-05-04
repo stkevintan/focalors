@@ -1,6 +1,6 @@
 import { Protocol } from "@focalors/yunzai-client";
 import { inject, injectable } from "tsyringe";
-import { Wechat } from "../wechaty";
+import { Wechat } from "../wechat";
 
 @injectable()
 export class GetSelfInfoRouteHandler
@@ -9,7 +9,7 @@ export class GetSelfInfoRouteHandler
     constructor(@inject(Wechat) private wechat: Wechat) {}
     readonly action = "get_self_info";
     private get bot() {
-        return this.wechat.getBot();
+        return this.wechat.bot;
     }
     handle(req: Protocol.GetSelfInfoAction[0]): Protocol.GetSelfInfoAction[1] {
         const user = this.bot.currentUser;

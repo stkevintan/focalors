@@ -8,8 +8,22 @@ importers:
     devDependencies:
       typescript: 4.9.5
 
+  packages/logger:
+    specifiers:
+      file-stream-rotator: ^1.0.0
+      tslib: ^2.5.0
+      tslog: ^4.8.2
+      typescript: ^4.9.5
+    dependencies:
+      file-stream-rotator: 1.0.0
+      tslib: 2.5.0
+      tslog: 4.8.2
+    devDependencies:
+      typescript: 4.9.5
+
   packages/wechat-bridge:
     specifiers:
+      '@focalors/logger': workspace:*
       '@focalors/yunzai-client': workspace:*
       '@types/qrcode-terminal': ^0.12.0
       dotenv: ^16.0.3
@@ -24,6 +38,8 @@ importers:
       wechaty-puppet-mock: ^1.18.2
       wechaty-puppet-padlocal: ^1.20.1
     dependencies:
+      '@focalors/logger': link:../logger
+      '@focalors/yunzai-client': link:../yunzai-client
       dotenv: 16.0.3
       file-box: 1.4.15
       qrcode-terminal: 0.12.0
@@ -34,13 +50,13 @@ importers:
       wechaty: 1.20.2
       wechaty-puppet-padlocal: 1.20.1
     devDependencies:
-      '@focalors/yunzai-client': link:../yunzai-client
       '@types/qrcode-terminal': 0.12.0
       typescript: 4.9.5
       wechaty-puppet-mock: 1.18.2
 
   packages/yunzai-client:
     specifiers:
+      '@focalors/logger': workspace:*
       '@types/node': ^18.15.13
       '@types/ws': ^8.5.4
       reflect-metadata: ^0.1.13
@@ -50,6 +66,7 @@ importers:
       typescript: ^4.9.5
       ws: ^8.13.0
     dependencies:
+      '@focalors/logger': link:../logger
       reflect-metadata: 0.1.13
       tslib: 2.5.0
       tslog: 4.8.2
@@ -1032,6 +1049,10 @@ packages:
       mime: 3.0.0
       qrcode: 1.5.3
       uuid: 8.3.2
+    dev: false
+
+  /file-stream-rotator/1.0.0:
+    resolution: {integrity: sha512-qg5mQO7o+vhS7NPqkrkfJS8qqhz0d17Tnewmb5sUTUKwYe27LKaDtbTuRAtQWkBn6jROuFPVIDF5DtckzokFTQ==}
     dev: false
 
   /file-type/16.5.4:

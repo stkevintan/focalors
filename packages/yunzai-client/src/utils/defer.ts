@@ -1,3 +1,6 @@
+/** A classical, promise-based defer implement
+ * avoid using it unless you know exactly what you are doing 
+ */
 export class Defer<T> {
     constructor() {}
     private resolver?: (x: T) => void;

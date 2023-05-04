@@ -8,12 +8,14 @@ import { GetFriendListRouteHandler } from "./getFriendList";
 import { GetGroupListRouteHandler } from "./getGroupList";
 import { UploadFileRouteHandler } from "./uploadFile";
 import { SendMessageRouteHandler } from "./sendMessage";
+import { GetGroupMemberInfoRouteHandler } from "./getGroupMemberInfo";
 
 [
     GetStatusRouteHandler,
     GetSelfInfoRouteHandler,
     GetFriendListRouteHandler,
     GetGroupListRouteHandler,
+    GetGroupMemberInfoRouteHandler,
     UploadFileRouteHandler,
     SendMessageRouteHandler,
 ].map((handler) =>

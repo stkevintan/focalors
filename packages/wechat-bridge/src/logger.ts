@@ -1,34 +1,7 @@
-import { appendFileSync, mkdirSync } from "fs";
 import path from "path";
-import { ILogObj, IMeta, Logger } from "tslog";
+import { createLogger } from "@focalors/logger";
 
-export const logger = new Logger({
-    minLevel: 3,
+export const logger = createLogger({
+    name: "wechat-bridge",
+    filename: path.resolve(__dirname, "../logs/stdout"),
 });
-logger.attachTransport(logFileTransport);
-
-let isDirMd = false;
-const logp = path.resolve(__dirname, "../logs/stdout.log");
-const dir = path.dirname(logp);
-
-function logFileTransport(logObject: ILogObj) {
-    const logMeta = logObject["_meta"] as IMeta;
-    let parentString = logMeta.parentNames?.join(":") || "";
-    if (parentString) {
-        parentString = `${parentString}:`;
-    }
-
-    if (!isDirMd) {
-        try {
-            mkdirSync(dir, { recursive: true });
-        } finally {
-            isDirMd = true;
-        }
-    }
-    appendFileSync(
-        logp,
-        `${logMeta.date.toISOString()} - ${
-            logMeta.logLevelName
-        }: [${parentString}${logMeta.name ?? "root"}] ${logObject[0]}\n`
-    );
-}

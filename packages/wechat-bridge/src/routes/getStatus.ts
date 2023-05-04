@@ -1,6 +1,6 @@
 import { Protocol } from "@focalors/yunzai-client";
 import { inject, injectable } from "tsyringe";
-import { Wechat } from "../wechaty";
+import { Wechat } from "../wechat";
 
 @injectable()
 export class GetStatusRouteHandler
@@ -8,7 +8,7 @@ export class GetStatusRouteHandler
 {
     constructor(@inject(Wechat) private wechat: Wechat) {}
     private get bot() {
-        return this.wechat.getBot();
+        return this.wechat.bot;
     }
 
     handle(req: Protocol.GetStatusAction[0]): Protocol.GetStatusAction[1] {

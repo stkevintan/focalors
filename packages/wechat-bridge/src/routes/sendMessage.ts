@@ -5,7 +5,7 @@ import { Contact, Message, Room } from "wechaty";
 import { FileBox } from "file-box";
 import { Configuration } from "../config";
 import { logger } from "../logger";
-import { Wechat } from "../wechaty";
+import { Wechat } from "../wechat";
 
 @injectable()
 export class SendMessageRouteHandler
@@ -18,7 +18,7 @@ export class SendMessageRouteHandler
     readonly action = "send_message";
 
     private get bot() {
-        return this.wechat.getBot();
+        return this.wechat.bot;
     }
 
     async handle(
