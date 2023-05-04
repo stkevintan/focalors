@@ -1,14 +1,16 @@
 import { Protocol } from "@focalors/yunzai-client";
-import { TOKENS } from "../tokens";
 import { inject, injectable } from "tsyringe";
-import { Wechaty } from "wechaty";
+import { Wechat } from "../wechaty";
 
 @injectable()
 export class GetGroupListRouteHandler
     implements Protocol.ActionRouteHandler<Protocol.GetGroupListAction>
 {
-    constructor(@inject(TOKENS.wechaty) private bot: Wechaty) {}
+    constructor(@inject(Wechat) private wechat: Wechat) {}
     readonly action = "get_group_list";
+    private get bot() {
+        return this.wechat.getBot();
+    }
     async handle(
         req: Protocol.GetGroupListAction[0]
     ): Promise<Protocol.GetGroupListAction[1]> {

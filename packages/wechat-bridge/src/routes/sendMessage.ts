@@ -1,11 +1,11 @@
 import path from "path";
 import { Protocol } from "@focalors/yunzai-client";
 import { inject, injectable } from "tsyringe";
-import { Contact, Message, Room, Wechaty } from "wechaty";
+import { Contact, Message, Room } from "wechaty";
 import { FileBox } from "file-box";
 import { Configuration } from "../config";
-import { TOKENS } from "../tokens";
 import { logger } from "../logger";
+import { Wechat } from "../wechaty";
 
 @injectable()
 export class SendMessageRouteHandler
@@ -13,9 +13,14 @@ export class SendMessageRouteHandler
 {
     constructor(
         @inject(Configuration) private configuration: Configuration,
-        @inject(TOKENS.wechaty) private bot: Wechaty
+        @inject(Wechat) private wechat: Wechat
     ) {}
     readonly action = "send_message";
+
+    private get bot() {
+        return this.wechat.getBot();
+    }
+
     async handle(
         req: Protocol.SendMessageAction[0]
     ): Promise<Protocol.SendMessageAction[1]> {

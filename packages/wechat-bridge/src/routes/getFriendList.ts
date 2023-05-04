@@ -1,15 +1,16 @@
 import { Protocol } from "@focalors/yunzai-client";
 import { inject, injectable } from "tsyringe";
-import { Wechaty } from "wechaty";
-
-import { TOKENS } from "../tokens";
+import { Wechat } from "../wechaty";
 
 @injectable()
 export class GetFriendListRouteHandler
     implements Protocol.ActionRouteHandler<Protocol.GetFriendListAction>
 {
-    constructor(@inject(TOKENS.wechaty) private bot: Wechaty) {}
+    constructor(@inject(Wechat) private wechat: Wechat) {}
     readonly action = "get_friend_list";
+    private get bot() {
+        return this.wechat.getBot();
+    }
     async handle(
         req: Protocol.GetFriendListAction[0]
     ): Promise<Protocol.GetFriendListAction[1]> {

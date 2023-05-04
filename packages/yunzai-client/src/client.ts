@@ -15,7 +15,6 @@ export class YunzaiClient {
     private client?: ws;
     private _send?: (arg1: any) => Promise<void>;
     private started = false;
-    private currentUserId: string | undefined;
     private handlerMap = new Map<string, Protocol.ActionRouteHandler[]>();
     private idleDefer = new Defer<void>();
 
@@ -26,8 +25,8 @@ export class YunzaiClient {
     ) {
         this.register();
     }
-    async run(currentUserId: string): Promise<void> {
-        this.currentUserId = currentUserId;
+
+    async run(): Promise<void> {
         if (this.started) {
             return await this.idleDefer.promise;
         }
@@ -62,7 +61,7 @@ export class YunzaiClient {
             sub_type: "",
             self: {
                 platform: "wechat",
-                user_id: this.currentUserId!,
+                user_id: "",
             },
             version: {
                 impl: "ComWechat",
@@ -149,11 +148,9 @@ export class YunzaiClient {
 
     async sendMessageEvent(
         message: Protocol.MessageSegment[],
+        from: string,
         to: string | { userId: string; groupId: string }
     ) {
-        if (this.currentUserId == undefined) {
-            logger.error("Please run the client before sending messages");
-        }
         await this.send({
             type: "message",
             id: randomUUID(),
@@ -167,7 +164,7 @@ export class YunzaiClient {
             alt_message: message.map(alt).join(" "),
             self: {
                 platform: "wechat",
-                user_id: this.currentUserId!,
+                user_id: from,
             },
             ...(typeof to === "object"
                 ? {
