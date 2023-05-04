@@ -3,9 +3,9 @@
     "private": true,
     "version": "0.0.0",
     "scripts": {
+        "start": "pm2 start pm2.json",
         "watch-all": "pnpm run -r --parallel watch",
-        "build-all": "pnpm run -r build",
-        "run": "pnpm exec focalors-wechat"
+        "build-all": "pnpm run -r build"
     },
     "devDependencies": {
         "typescript": "^4.9.5"
