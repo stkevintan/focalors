@@ -17,7 +17,7 @@ dotenv.config();
 container.register(YunzaiConfiguration, { useToken: Configuration });
 
 @injectable()
-class Program {
+export class Program {
     constructor(
         @inject(YunzaiClient) private client: YunzaiClient,
         @inject(Wechat) private wechat: Wechat
@@ -33,7 +33,6 @@ class Program {
     }
 }
 
-export async function run() {
-    await container.resolve(Program).start();
-    logger.info("Focalors is running...");
+export function entrypoint() {
+    return container.resolve(Program);
 }
