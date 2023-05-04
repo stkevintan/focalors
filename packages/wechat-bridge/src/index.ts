@@ -44,11 +44,12 @@ export async function run() {
             );
             return;
         }
-        const isRoom = room === null;
-        if (!isRoom && !talker.star() && !message.self()) {
+        const isRoom = room !== null;
+
+        if (!isRoom && !talker.friend() && !message.self()) {
             logger.warn(
-                "message stop processing:",
-                `room: ${isRoom}, star: ${talker.star()}, self: ${message.self()}`
+                `message stop processing: user is not qualified`,
+                `room: ${isRoom}, friend: ${talker.friend()}, self: ${message.self()}`
             );
             return;
         }
@@ -76,10 +77,8 @@ export async function run() {
                 groupId: room.id,
                 userId: talker.id,
             });
-        }
-        const user = message.listener();
-        if (user) {
-            void client.sendMessageEvent(segment, user.id);
+        } else {
+            void client.sendMessageEvent(segment, talker.id);
         }
     });
     logger.info("Focalors is running...");

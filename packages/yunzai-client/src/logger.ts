@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync } from "fs";
+import { appendFileSync, mkdirSync } from "fs";
 import path from "path";
 import { ILogObj, IMeta, Logger } from "tslog";
 
