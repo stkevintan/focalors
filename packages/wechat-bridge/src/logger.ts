@@ -7,7 +7,10 @@ export const logger = new Logger({
 });
 logger.attachTransport(logFileTransport);
 
+let isDirMd = false;
 const logp = path.resolve(__dirname, "../logs/stdout.log");
+const dir = path.dirname(logp);
+
 function logFileTransport(logObject: ILogObj) {
     const logMeta = logObject["_meta"] as IMeta;
     let parentString = logMeta.parentNames?.join(":") || "";
@@ -15,16 +18,17 @@ function logFileTransport(logObject: ILogObj) {
         parentString = `${parentString}:`;
     }
 
-    const dir = path.dirname(logp);
-    if (!existsSync(dir)) {
+    if (!isDirMd) {
         try {
             mkdirSync(dir, { recursive: true });
-        } catch {}
+        } finally {
+            isDirMd = true;
+        }
     }
     appendFileSync(
         logp,
         `${logMeta.date.toISOString()} - ${
             logMeta.logLevelName
-        }: [${parentString}${logMeta.name ?? 'root'}] ${logObject[0]}\n`
+        }: [${parentString}${logMeta.name ?? "root"}] ${logObject[0]}\n`
     );
 }
