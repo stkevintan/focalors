@@ -9,6 +9,7 @@ export interface PrivateMessageTarget {
 export interface GroupMessageTarget {
     detail_type: "group";
     group_id: string;
+    user_id?: string;
 }
 export type MessageTarget = GroupMessageTarget | PrivateMessageTarget;
 

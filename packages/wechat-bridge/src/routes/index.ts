@@ -1,6 +1,6 @@
 import { container } from "tsyringe";
 
-import { TOKENS } from "src/tokens";
+import { TOKENS } from "../tokens";
 import { Protocol } from "@focalors/yunzai-client";
 
 import { GetStatusRouteHandler } from "./getStatus";

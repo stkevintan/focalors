@@ -1,5 +1,5 @@
-import { PromiseOrNot, Protocol } from "@focalors/yunzai-client";
-import { TOKENS } from "src/tokens";
+import { Protocol } from "@focalors/yunzai-client";
+import { TOKENS } from "../tokens";
 import { inject, injectable } from "tsyringe";
 import { Wechaty } from "wechaty";
 

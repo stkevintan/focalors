@@ -1,20 +1,16 @@
-import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
 import { Protocol } from "@focalors/yunzai-client";
-import { Configuration } from "src/config";
-import { TOKENS } from "src/tokens";
-import { inject } from "tsyringe";
-import { Wechaty } from "wechaty";
-import { logger } from "src/logger";
+import { Configuration } from "../config";
+import { inject, injectable } from "tsyringe";
+import { logger } from "../logger";
+import { FileBox } from "file-box";
 
+@injectable()
 export class UploadFileRouteHandler
     implements Protocol.ActionRouteHandler<Protocol.UploadFileAction>
 {
-    constructor(
-        @inject(Configuration) private configuration: Configuration,
-        @inject(TOKENS.wechaty) private bot: Wechaty
-    ) {}
+    constructor(@inject(Configuration) private configuration: Configuration) {}
     readonly action = "upload_file";
     async handle(
         req: Protocol.UploadFileAction[0]
@@ -23,10 +19,10 @@ export class UploadFileRouteHandler
         const dir = this.configuration.imageCacheDirectory;
         const name = randomUUID();
         const imagePath = path.resolve(dir, `${name}.jpg`);
-        // currently we only handle data
-        if (file.type === "data") {
-            await fs.promises.writeFile(imagePath, file.data, "base64");
+        const filebox = toFileBox(file, `${name}.jpg`);
+        if (filebox) {
             logger.info("successfully write image cache into:", imagePath);
+            await filebox.toFile(imagePath, true);
         }
         return {
             echo: req.echo,
@@ -34,5 +30,19 @@ export class UploadFileRouteHandler
                 file_id: name,
             },
         };
+    }
+}
+
+function toFileBox(
+    file: Protocol.UploadFileAction[0]["params"],
+    name?: string
+) {
+    switch (file.type) {
+        case "data":
+            return FileBox.fromBase64(file.data, name);
+        case "path":
+            return FileBox.fromFile(file.path, name);
+        case "url":
+            return FileBox.fromUrl(file.url, { headers: file.headers, name });
     }
 }

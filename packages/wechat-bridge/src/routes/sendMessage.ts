@@ -1,13 +1,13 @@
 import path from "path";
 import { Protocol } from "@focalors/yunzai-client";
-import { FileBox } from "file-box";
-import { Configuration } from "src/config";
-import { TOKENS } from "src/tokens";
-
-import { inject, singleton } from "tsyringe";
+import { inject, injectable } from "tsyringe";
 import { Contact, Message, Room, Wechaty } from "wechaty";
+import { FileBox } from "file-box";
+import { Configuration } from "../config";
+import { TOKENS } from "../tokens";
+import { logger } from "../logger";
 
-@singleton()
+@injectable()
 export class SendMessageRouteHandler
     implements Protocol.ActionRouteHandler<Protocol.SendMessageAction>
 {
@@ -19,22 +19,33 @@ export class SendMessageRouteHandler
     async handle(
         req: Protocol.SendMessageAction[0]
     ): Promise<Protocol.SendMessageAction[1]> {
-        // TODO: send message to user
         const { params } = req;
         let ok = false;
-        if (params.detail_type === "private") {
-            const user = await this.bot.Contact.find({ id: params.user_id });
-            if (user) {
-                await this.sendMessageToUser(params.message, user);
-                ok = true;
+        try {
+            if (params.detail_type === "private") {
+                const user = await this.bot.Contact.find({
+                    id: params.user_id,
+                });
+                if (user) {
+                    await this.sendMessageToUser(params.message, user);
+                    ok = true;
+                }
             }
-        }
-        if (params.detail_type === "group") {
-            const group = await this.bot.Room.find({ id: params.group_id });
-            if (group) {
-                await this.sendMessageToGroup(params.message, group);
-                ok = true;
+            if (params.detail_type === "group") {
+                const group = await this.bot.Room.find({ id: params.group_id });
+                const user = params.user_id
+                    ? await this.bot.Contact.find({
+                          id: params.user_id,
+                      })
+                    : undefined;
+                if (group) {
+                    await this.sendMessageToGroup(params.message, group, user);
+                    ok = true;
+                }
             }
+        } catch (err) {
+            logger.error("Error while sending message:", err);
+            ok = false;
         }
         return {
             echo: req.echo,
@@ -57,7 +68,10 @@ export class SendMessageRouteHandler
                     break;
                 // merge adjacent text message?
                 case "text":
-                    await (repliedMessage ?? user).say(message.data.text);
+                    await (repliedMessage ?? user).say(
+                        stripCommandHeader(message.data.text, user.self())
+                    );
+                    repliedMessage = undefined;
                     break;
                 case "image":
                 case "wx.emoji":
@@ -70,7 +84,8 @@ export class SendMessageRouteHandler
 
     private async sendMessageToGroup(
         messages: Protocol.MessageSegment[],
-        group: Room
+        group: Room,
+        user?: Contact
     ) {
         const mentions = (
             await Promise.all(
@@ -96,9 +111,10 @@ export class SendMessageRouteHandler
                 // merge adjacent text message?
                 case "text":
                     await (repliedMessage ?? group).say(
-                        message.data.text,
+                        stripCommandHeader(message.data.text, user?.self()),
                         ...mentions
                     );
+                    repliedMessage = undefined;
                     break;
                 case "image":
                 case "wx.emoji":
@@ -114,6 +130,12 @@ export class SendMessageRouteHandler
             this.configuration.imageCacheDirectory,
             `${id}.jpg`
         );
-        return FileBox.fromFile(imagePath, id);
+        return FileBox.fromFile(imagePath);
     }
+}
+function stripCommandHeader(text: string, shouldDo = false) {
+    if (shouldDo) {
+        return text.replace(/^\s*#*/g, "");
+    }
+    return text;
 }

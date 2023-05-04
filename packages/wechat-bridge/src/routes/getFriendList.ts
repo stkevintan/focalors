@@ -1,10 +1,10 @@
 import { Protocol } from "@focalors/yunzai-client";
-import { inject, singleton } from "tsyringe";
+import { inject, injectable } from "tsyringe";
 import { Wechaty } from "wechaty";
 
 import { TOKENS } from "../tokens";
 
-@singleton()
+@injectable()
 export class GetFriendListRouteHandler
     implements Protocol.ActionRouteHandler<Protocol.GetFriendListAction>
 {

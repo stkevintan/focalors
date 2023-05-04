@@ -1,4 +1,4 @@
-import { appendFileSync } from "fs";
+import { appendFileSync, existsSync, mkdirSync } from "fs";
 import path from "path";
 import { ILogObj, IMeta, Logger } from "tslog";
 
@@ -8,7 +8,6 @@ export const logger = new Logger({
 logger.attachTransport(logFileTransport);
 
 const logp = path.resolve(__dirname, "../logs/stdout.log");
-
 function logFileTransport(logObject: ILogObj) {
     const logMeta = logObject["_meta"] as IMeta;
     let parentString = logMeta.parentNames?.join(":") || "";
@@ -16,10 +15,16 @@ function logFileTransport(logObject: ILogObj) {
         parentString = `${parentString}:`;
     }
 
+    const dir = path.dirname(logp);
+    if (!existsSync(dir)) {
+        try {
+            mkdirSync(dir, { recursive: true });
+        } catch {}
+    }
     appendFileSync(
         logp,
         `${logMeta.date.toISOString()} - ${
             logMeta.logLevelName
-        }: [${parentString}${logMeta.name}] ${logObject[0]}\n`
+        }: [${parentString}${logMeta.name ?? 'root'}] ${logObject[0]}\n`
     );
 }

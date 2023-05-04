@@ -15,6 +15,7 @@ export class YunzaiClient {
     private client?: ws;
     private _send?: (arg1: any) => Promise<void>;
     private started = false;
+    private currentUserId: string | undefined;
     private handlerMap = new Map<string, Protocol.ActionRouteHandler[]>();
     private idleDefer = new Defer<void>();
 
@@ -25,7 +26,8 @@ export class YunzaiClient {
     ) {
         this.register();
     }
-    async run(): Promise<void> {
+    async run(currentUserId: string): Promise<void> {
+        this.currentUserId = currentUserId;
         if (this.started) {
             return await this.idleDefer.promise;
         }
@@ -60,7 +62,7 @@ export class YunzaiClient {
             sub_type: "",
             self: {
                 platform: "wechat",
-                user_id: this.configuration.user.id,
+                user_id: this.currentUserId!,
             },
             version: {
                 impl: "ComWechat",
@@ -147,9 +149,11 @@ export class YunzaiClient {
 
     async sendMessageEvent(
         message: Protocol.MessageSegment[],
-        to: string,
-        kind: "group" | "private" = "private"
+        to: string | { userId: string; groupId: string }
     ) {
+        if (this.currentUserId == undefined) {
+            logger.error("Please run the client before sending messages");
+        }
         await this.send({
             type: "message",
             id: randomUUID(),
@@ -163,10 +167,14 @@ export class YunzaiClient {
             alt_message: message.map(alt).join(" "),
             self: {
                 platform: "wechat",
-                user_id: this.configuration.user.id,
+                user_id: this.currentUserId!,
             },
-            ...(kind === "group"
-                ? { detail_type: "group", group_id: to }
+            ...(typeof to === "object"
+                ? {
+                      detail_type: "group",
+                      group_id: to.groupId,
+                      user_id: to.userId,
+                  }
                 : { detail_type: "private", user_id: to }),
         });
     }

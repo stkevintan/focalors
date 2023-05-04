@@ -12,9 +12,4 @@ export class Configuration {
         },
         idleTimeout: 10 * 1000,
     };
-    readonly user = {
-        id: "10086",
-        name: "user",
-        displayName: "",
-    };
 }

@@ -7,6 +7,7 @@ import { logger } from "./logger";
 
 @singleton()
 export class Configuration extends YunzaiConfiguration {
+    readonly base = false;
     constructor() {
         super();
         try {
