@@ -5,13 +5,13 @@ import { inject, injectable, injectAll } from "tsyringe";
 import { randomInt, randomUUID } from "crypto";
 
 import { TOKENS } from "./tokens";
-import { Protocol } from "./types";
+import { AsyncService, Protocol } from "./types";
 import { Configuration } from "./config";
 import { Defer } from "./utils/defer";
 import { logger } from "./logger";
 
 @injectable()
-export class YunzaiClient extends EventEmitter {
+export class YunzaiClient extends EventEmitter implements AsyncService {
     private client?: ws;
 
     constructor(
@@ -30,6 +30,7 @@ export class YunzaiClient extends EventEmitter {
 
     async start(): Promise<void> {
         await this.connect();
+        logger.info('yunzai client started');
     }
 
     private async connect(): Promise<ws> {
@@ -51,7 +52,7 @@ export class YunzaiClient extends EventEmitter {
         return this.client;
     }
 
-    stop() {
+    async stop() {
         if (this.client && this.client.readyState < ws.CLOSING) {
             this.client.close();
         }

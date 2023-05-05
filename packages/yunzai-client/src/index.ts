@@ -1,8 +1,6 @@
-import { YunzaiClient } from "./client";
 import "reflect-metadata";
-import { container } from "tsyringe";
 
-export { container, YunzaiClient };
+export { YunzaiClient } from "./client";
 
 export * from "./tokens";
 export * from "./types";

@@ -3,11 +3,11 @@ import { singleton } from "tsyringe";
 import { ScanStatus, types, WechatyBuilder } from "wechaty";
 import qrcodeTerminal from "qrcode-terminal";
 import { logger as parentLogger } from "./logger";
-import { Protocol, YunzaiClient } from "@focalors/yunzai-client";
+import { AsyncService, Protocol, YunzaiClient } from "@focalors/yunzai-client";
 
 const logger = parentLogger.getSubLogger({ name: "wechat" });
 @singleton()
-export class Wechat {
+export class Wechat implements AsyncService {
     private self = WechatyBuilder.build({ name: "focalors-bot" });
     constructor() {}
     async start() {
@@ -18,6 +18,11 @@ export class Wechat {
         this.self.on("scan", onScan);
         await this.self.start();
         await this.self.ready();
+        logger.info('wechat started');
+    }
+
+    async stop() {
+        await this.self.logout();
     }
 
     get bot() {

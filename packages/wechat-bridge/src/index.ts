@@ -4,6 +4,7 @@ import { container, inject, injectable } from "tsyringe";
 // init routes
 import "./routes";
 import {
+    AsyncService,
     Configuration as YunzaiConfiguration,
     YunzaiClient,
 } from "@focalors/yunzai-client";
@@ -17,22 +18,25 @@ dotenv.config();
 container.register(YunzaiConfiguration, { useToken: Configuration });
 
 @injectable()
-export class Program {
+export class Program implements AsyncService {
     constructor(
         @inject(YunzaiClient) private client: YunzaiClient,
         @inject(Wechat) private wechat: Wechat
     ) {}
 
+    static create() {
+        return container.resolve(Program);
+    }
+
     async start() {
-        await this.wechat.start();
-        logger.info("wechat is running...");
-        await this.client.start();
-        logger.info("client is running...");
+        await Promise.all([this.wechat.start(), this.client.start()]);
         // bridge wechat and client
         this.wechat.bridge(this.client);
+        logger.info("program started");
     }
-}
 
-export function entrypoint() {
-    return container.resolve(Program);
+    async stop() {
+        // swallow the error since we must ensure all the stop functions will be called.
+        await Promise.allSettled([this.client.stop(), this.wechat.stop()]);
+    }
 }
