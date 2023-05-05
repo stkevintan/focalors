@@ -30,11 +30,11 @@ export class YunzaiClient extends EventEmitter implements AsyncService {
 
     async start(): Promise<void> {
         await this.connect();
-        logger.info('yunzai client started');
+        logger.info("yunzai client started");
     }
 
     private async connect(): Promise<ws> {
-        // // if connection existed
+        // if connection existed
         if (this.client && this.client.readyState < ws.CLOSING) {
             logger.warn("duplicate call of connect detected.");
             return this.client;
@@ -131,7 +131,6 @@ export class YunzaiClient extends EventEmitter implements AsyncService {
     ) {
         // try to reconnect if client readystate is close or closing
         if (!this.client || this.client.readyState > ws.OPEN) {
-            this.stop();
             await this.connect();
         }
         await this.send({
