@@ -10,7 +10,6 @@ import { Configuration } from "./config";
 import { Defer } from "./utils/defer";
 import { logger } from "./logger";
 
-// TODO: use other EventEmitter implement with type support
 @injectable()
 export class YunzaiClient extends EventEmitter {
     private client?: ws;
@@ -40,22 +39,16 @@ export class YunzaiClient extends EventEmitter {
             return this.client;
         }
         this.client = new ws(this.configuration.ws.endpoint);
-        // bridge message to event
-        this.onMessage(this.client);
+        // bind message
+        this.client.on("message", this.onClientMessage.bind(this));
         // wait for websocket opened
-        await this.once$("open");
+        await waitFor(this.client, "open");
         await Promise.all([
+            waitFor(this, "get_group_list"),
+            waitFor(this, "get_friend_list"),
             this.ping(),
-            this.once$("get_group_list"),
-            this.once$("get_friend_list"),
         ]);
         return this.client;
-    }
-
-    async once$<T = unknown>(event: string): Promise<T[]> {
-        const defer = new Defer<T[]>();
-        this.once(event, (...args: T[]) => defer.resolve(args));
-        return await defer.promise;
     }
 
     stop() {
@@ -84,18 +77,16 @@ export class YunzaiClient extends EventEmitter {
         });
     }
 
-    private onMessage(client: ws) {
-        client.on("message", (data) => {
-            if (!data) {
-                logger.warn("empty message received, stop processing");
-                return;
-            }
-            const req = JSON.parse(String(data)) as Protocol.KnownAction[0];
-            if (null === req || typeof req !== "object") {
-                logger.warn("Unexpected message received", req);
-            }
-            this.emit(req.action, req);
-        });
+    private onClientMessage(data: ws.RawData) {
+        if (!data) {
+            logger.warn("empty message received, stop processing");
+            return;
+        }
+        const req = JSON.parse(String(data)) as Protocol.KnownAction[0];
+        if (null === req || typeof req !== "object") {
+            logger.warn("Unexpected message received", req);
+        }
+        this.emit(req.action, req);
     }
 
     async send(
@@ -116,12 +107,15 @@ export class YunzaiClient extends EventEmitter {
         return async (req: Protocol.ActionReq<string>) => {
             try {
                 logger.debug(`Starting to execute handler of ${req.action}`);
-                await handler.handle(req);
+                const res = await handler.handle(req);
+                if (res) {
+                    await this.send(res);
+                }
                 logger.debug(
                     `Event handler of ${req.action} executed successfully`
                 );
             } catch (err) {
-                logger.error(
+                logger.debug(
                     `Event handler of ${req.action} failed to execute:`,
                     err
                 );
@@ -180,4 +174,13 @@ function alt(message: Protocol.MessageSegment) {
         default:
             return `<unknown message>`;
     }
+}
+
+async function waitFor<T = unknown>(
+    host: EventEmitter,
+    event: string
+): Promise<T[]> {
+    const defer = new Defer<T[]>();
+    host.once(event, (...args: T[]) => defer.resolve(args));
+    return await defer.promise;
 }

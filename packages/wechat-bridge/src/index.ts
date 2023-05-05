@@ -24,7 +24,7 @@ export class Program {
     ) {}
 
     async start() {
-        await this.wechat.run();
+        await this.wechat.start();
         logger.info("wechat is running...");
         await this.client.start();
         logger.info("client is running...");

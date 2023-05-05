@@ -10,16 +10,14 @@ const logger = parentLogger.getSubLogger({ name: "wechat" });
 export class Wechat {
     private self = WechatyBuilder.build({ name: "focalors-bot" });
     constructor() {}
-    async run() {
+    async start() {
         logger.info(
             "wechaty starts with puppet:",
             process.env["WECHATY_PUPPET"]
         );
         this.self.on("scan", onScan);
-        await Promise.all([
-            this.self.start(),
-            new Promise<void>((res) => this.self.once("login", () => res())),
-        ]);
+        await this.self.start();
+        await this.self.ready();
     }
 
     get bot() {
