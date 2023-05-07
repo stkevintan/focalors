@@ -7,7 +7,6 @@ import { logger } from "./logger";
 
 @singleton()
 export class Configuration extends YunzaiConfiguration {
-    readonly base = false;
     constructor() {
         super();
         try {
@@ -16,5 +15,5 @@ export class Configuration extends YunzaiConfiguration {
             logger.debug(`image cache directory create failed`, err);
         }
     }
-    readonly imageCacheDirectory = path.resolve(os.tmpdir(), "yunzai-cache");
+    readonly imageCacheDirectory = process.env.FOCALORS_IMAGE_CACHE_DIR || path.resolve(os.tmpdir(), "yunzai-cache");
 }

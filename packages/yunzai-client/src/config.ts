@@ -6,10 +6,9 @@ export class Configuration {
         port: 2536,
         path: "/ComWeChat",
         proto: "ws",
-        host: `localhost`,
+        host: process.env.FOCALORS_YUNZAI_HOST ?? `localhost`,
         get endpoint() {
             return `${this.proto}://${this.host}:${this.port}${this.path}`;
         },
-        idleTimeout: 10 * 1000,
     };
 }
