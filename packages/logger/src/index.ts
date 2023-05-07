@@ -14,7 +14,7 @@ export interface CreateLoggerParams extends ISettingsParam<unknown> {
 
 export function createLogger(settings: CreateLoggerParams = {}) {
     const logger = new Logger({
-        minLevel: 3,
+        minLevel: 2,
         ...settings,
     });
     logger.attachTransport(logFileTransport);
