@@ -18,7 +18,7 @@ if [ $(git rev-parse HEAD) = $(git ls-remote $(git rev-parse --abbrev-ref @{u} |
     if [[ -z $(git status -s) ]]; then
         git reset --hard HEAD
     fi
-    git pull origin master --allow-unrelated-histories
+    git pull --allow-unrelated-histories
     set -e
     echo -e "\n ================ \n ${Info} ${GreenBG} 更新 Focalors 运行依赖 ${Font} \n ================ \n"
     pnpm install --frozen-lock

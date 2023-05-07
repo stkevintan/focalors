@@ -26,10 +26,10 @@ if [[ -z $(git status -s) ]]; then
     echo -e " ${Warn} ${YellowBG} 当前工作区有修改，尝试暂存后更新。${Font}"
     git add .
     git stash
-    git pull origin master --allow-unrelated-histories --rebase
+    git pull --allow-unrelated-histories --rebase
     git stash pop
 else
-    git pull origin master --allow-unrelated-histories
+    git pull --allow-unrelated-histories
 fi
 
 if [[ ! -f "$HOME/.ovo/yunzai.ok" ]]; then
@@ -60,10 +60,10 @@ if [ -d $MIAO_PLUGIN_PATH"/.git" ]; then
         echo -e " ${Warn} ${YellowBG} 当前工作区有修改，尝试暂存后更新。${Font}"
         git add .
         git stash
-        git pull origin master --allow-unrelated-histories --rebase
+        git pull --allow-unrelated-histories --rebase
         git stash pop
     else
-        git pull origin master --allow-unrelated-histories
+        git pull --allow-unrelated-histories
     fi
 
     if [[ ! -f "$HOME/.ovo/miao.ok" ]]; then
@@ -89,10 +89,10 @@ if [ -d $PY_PLUGIN_PATH"/.git" ]; then
         echo -e " ${Warn} ${YellowBG} 当前工作区有修改，尝试暂存后更新。${Font}"
         git add .
         git stash
-        git pull origin main --allow-unrelated-histories --rebase
+        git pull --allow-unrelated-histories --rebase
         git stash pop
     else
-        git pull origin main --allow-unrelated-histories
+        git pull --allow-unrelated-histories
     fi
 
     if [[ ! -f "$HOME/.ovo/py.ok" ]]; then
@@ -121,10 +121,10 @@ if [ -d $XIAOYAO_CVS_PATH"/.git" ]; then
         echo -e " ${Warn} ${YellowBG} 当前工作区有修改，尝试暂存后更新。${Font}"
         git add .
         git stash
-        git pull origin master --allow-unrelated-histories --rebase
+        git pull --allow-unrelated-histories --rebase
         git stash pop
     else
-        git pull origin master --allow-unrelated-histories
+        git pull --allow-unrelated-histories
     fi
 
     if [[ ! -f "$HOME/.ovo/xiaoyao.ok" ]]; then
@@ -150,10 +150,10 @@ if [ -d $GUOBA_PLUGIN_PATH"/.git" ]; then
         echo -e " ${Warn} ${YellowBG} 当前工作区有修改，尝试暂存后更新。${Font}"
         git add .
         git stash
-        git pull origin master --allow-unrelated-histories --rebase
+        git pull --allow-unrelated-histories --rebase
         git stash pop
     else
-        git pull origin master --allow-unrelated-histories
+        git pull --allow-unrelated-histories
     fi
 
     if [[ ! -f "$HOME/.ovo/guoba.ok" ]]; then
