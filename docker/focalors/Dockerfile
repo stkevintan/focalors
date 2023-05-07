@@ -44,7 +44,8 @@ RUN REPO_URL=${REPO_URL} \
     && if [ "$USE_NPM_MIRROR"x = "true"x ]; then _NPM_MIRROR_FLAG="--registry=https://registry.npmmirror.com"; fi \
     && git clone --depth=1 --branch $REPO_BRANCH $REPO_URL /app/focalors \
     && cd /app/focalors \
-    && pnpm install $_NPM_MIRROR_FLAG --frozen-lock
+    && pnpm install $_NPM_MIRROR_FLAG --frozen-lock \
+    && pnpm run build-all
 
 COPY --from=resource /res/entrypoint.sh /app/focalors/entrypoint.sh
 
