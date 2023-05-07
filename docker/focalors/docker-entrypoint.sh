@@ -10,7 +10,7 @@ Font="\\033[0m"
 WORK_DIR="/app/focalors"
 
 if [[ ! -d "$FOCALORS_IMAGE_CACHE_DIR" ]]; then
-    mkdir $FOCALORS_IMAGE_CACHE_DIR
+    mkdir -p $FOCALORS_IMAGE_CACHE_DIR
 fi
 
 echo -e "\n ================ \n ${Info} ${GreenBG} 拉取 Focalors 更新 ${Font} \n ================ \n"

@@ -8,13 +8,13 @@ RUN dos2unix /res/entrypoint.sh \
 
 FROM node:16-slim AS runtime
 
-ARG REPO_URL https://github.com/stkevintan/focalors
-ARG REPO_BRANCH master
-ARG USE_APT_MIRROR true
-ARG USE_NPM_MIRROR true
+ARG REPO_URL=https://github.com/stkevintan/focalors
+ARG REPO_BRANCH=master
+ARG USE_APT_MIRROR=true
+ARG USE_NPM_MIRROR=true
 
-RUN export USE_APT_MIRROR=${USE_APT_MIRROR:-true} \
-    && export USE_NPM_MIRROR=${USE_NPM_MIRROR:-true} \
+RUN export USE_APT_MIRROR=${USE_APT_MIRROR} \
+    && export USE_NPM_MIRROR=${USE_NPM_MIRROR} \
     \
     && ((test "$USE_APT_MIRROR"x = "true"x \
     && sed -i "s/deb.debian.org/mirrors.ustc.edu.cn/g" /etc/apt/sources.list) || true) \

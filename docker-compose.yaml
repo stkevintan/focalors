@@ -52,10 +52,11 @@ services:
         limits:
           memory: 2G
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:2536"]
+      test: curl --fail http://localhost:2536 || exit 1
       start_period: 20s
-      interval: 5s
-      timeout: 2s
+      interval: 60s
+      retries: 5
+      timeout: 10s
 
   redis:
     container_name: miao-redis

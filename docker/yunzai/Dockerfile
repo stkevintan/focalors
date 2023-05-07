@@ -8,13 +8,13 @@ RUN dos2unix /res/entrypoint.sh \
 
 FROM node:16-slim AS runtime
 
-ARG BUNDLE_FFMPEG true
-ARG BUNDLE_POETRY true
-ARG USE_APT_MIRROR true
-ARG USE_NPM_MIRROR true
-ARG USE_PYPI_MIRROR true
-ARG REPO_URL https://gitee.com/TimeRainStarSky/Yunzai.git
-ARG REPO_BRANCH master
+ARG BUNDLE_FFMPEG=true
+ARG BUNDLE_POETRY=true
+ARG USE_APT_MIRROR=true
+ARG USE_NPM_MIRROR=true
+ARG USE_PYPI_MIRROR=true
+ARG REPO_URL=https://gitee.com/TimeRainStarSky/Yunzai.git
+ARG REPO_BRANCH=master
 
 RUN export BUNDLE_FFMPEG=${BUNDLE_FFMPEG:-true} \
     && export BUNDLE_POETRY=${BUNDLE_POETRY:-true} \
