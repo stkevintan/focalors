@@ -53,6 +53,9 @@ services:
           memory: 2G
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:2536"]
+      start_period: 20s
+      interval: 5s
+      timeout: 2s
 
   redis:
     container_name: miao-redis
