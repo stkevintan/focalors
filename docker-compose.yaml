@@ -13,7 +13,9 @@ services:
       FOCALORS_IMAGE_CACHE_DIR: '/app/focalors/.images'
       FOCALORS_YUNZAI_HOST: 'miao-yunzai'
     volumes:
-      - ./.images:/app/focalors/.images
+      - ./focalors/.images:/app/focalors/.images
+      - ./focalors/logs:/app/focalors/logs
+
     depends_on:
       miao-yunzai: { condition: service_healthy }
 
