@@ -5,8 +5,8 @@ services:
     build:
       context: ./docker/focalors
       args:
-        USE_APT_MIRROR: 'true' # 是否在构建时使用 apt 镜像
-        USE_NPM_MIRROR: 'true' # 是否在构建时使用 npm 镜像
+        USE_APT_MIRROR: 'false' # 是否在构建时使用 apt 镜像
+        USE_NPM_MIRROR: 'false' # 是否在构建时使用 npm 镜像
     environment:
       WECHATY_PUPPET: ${WECHATY_PUPPET}
       WECHATY_PUPPET_PADLOCAL_TOKEN: ${WECHATY_PUPPET_PADLOCAL_TOKEN}
@@ -26,9 +26,9 @@ services:
       args:
         BUNDLE_FFMPEG: 'false' # 是否在构建时打包 ffmpeg
         BUNDLE_POETRY: 'false' # 是否在构建时打包 poetry
-        USE_APT_MIRROR: 'true' # 是否在构建时使用 apt 镜像
-        USE_NPM_MIRROR: 'true' # 是否在构建时使用 npm 镜像
-        USE_PYPI_MIRROR: 'true' # 是否在构建时使用 pypi 镜像 
+        USE_APT_MIRROR: 'false' # 是否在构建时使用 apt 镜像
+        USE_NPM_MIRROR: 'false' # 是否在构建时使用 npm 镜像
+        USE_PYPI_MIRROR: 'false' # 是否在构建时使用 pypi 镜像 
     restart: always
     # ports:
     #   - "50831:50831"                                                 # 映射锅巴插件端口，格式"主机端口:容器内部端口"
