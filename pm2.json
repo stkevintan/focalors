@@ -1,0 +1,10 @@
+{
+    "apps": [
+        {
+            "name": "Focalors",
+            "script": "./packages/wechat-bridge/bin/focalors-wechat.js",
+            "max_memory_restart": "512M",
+            "restart_delay": 60000
+        }
+    ]
+}

@@ -1,0 +1,27 @@
+/** A classical, promise-based defer implement
+ * avoid using it unless you know exactly what you are doing 
+ */
+export class Defer<T> {
+    constructor() {}
+    private resolver?: (x: T) => void;
+    private rejecter?: (err: unknown) => void;
+    private completed = false;
+    readonly promise = new Promise<T>((res, rej) => {
+        this.resolver = res;
+        this.rejecter = rej;
+    });
+
+    resolve(x: T) {
+        if (!this.completed) {
+            this.resolver?.(x);
+            this.completed = true;
+        }
+    }
+
+    reject(err: unknown) {
+        if (!this.completed) {
+            this.rejecter?.(err);
+            this.completed = true;
+        }
+    }
+}

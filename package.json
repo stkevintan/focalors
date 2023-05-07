@@ -1,0 +1,14 @@
+{
+    "name": "focalors",
+    "private": true,
+    "version": "0.0.0",
+    "scripts": {
+        "pm2start": "pm2 start pm2.json",
+        "start": "node ./packages/wechat-bridge/bin/focalors-wechat.js",
+        "watch-all": "pnpm run -r --parallel watch",
+        "build-all": "pnpm run -r build"
+    },
+    "devDependencies": {
+        "typescript": "^4.9.5"
+    }
+}
