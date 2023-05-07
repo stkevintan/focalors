@@ -14,7 +14,7 @@ if [[ ! -d "$FOCALORS_IMAGE_CACHE_DIR" ]]; then
 fi
 
 echo -e "\n ================ \n ${Info} ${GreenBG} 拉取 Focalors 更新 ${Font} \n ================ \n"
-if [ $(git rev-parse HEAD) = $(git ls-remote $(git rev-parse --abbrev-ref @{u} | sed 's/\// /g') | cut -f1) ]; then
+if [ $(git rev-parse HEAD) != $(git ls-remote $(git rev-parse --abbrev-ref @{u} | sed 's/\// /g') | cut -f1) ]; then
     if [[ -z $(git status -s) ]]; then
         git reset --hard HEAD
     fi

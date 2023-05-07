@@ -78,7 +78,12 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
 RUN REPO_URL=${REPO_URL} \
     && REPO_BRANCH=${REPO_BRANCH} \
     && USE_NPM_MIRROR=${USE_NPM_MIRROR} \
+    && USE_APT_MIRROR=${USE_APT_MIRROR} \
     \
+    && ((test "$USE_APT_MIRROR"x = "true"x \
+    && sed -i "s/deb.debian.org/mirrors.ustc.edu.cn/g" /etc/apt/sources.list) || true) \
+    && apt-get update \
+    && apt-get install -y python \
     && _NPM_MIRROR_FLAG="" \
     && if [ "$USE_NPM_MIRROR"x = "true"x ]; then _NPM_MIRROR_FLAG="--registry=https://registry.npmmirror.com"; fi \
     && git clone --depth=1 --branch $REPO_BRANCH $REPO_URL /app/Miao-Yunzai \
