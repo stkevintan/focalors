@@ -24,6 +24,7 @@ export class GetFriendListRouteHandler
                     user_displayname: "",
                     user_remark: (await friend.alias()) ?? "",
                     "wx.verify_flag": friend.friend() ? "1" : "0",
+                    "wx.avatar": friend.payload?.avatar,
                 }))
             ),
         };

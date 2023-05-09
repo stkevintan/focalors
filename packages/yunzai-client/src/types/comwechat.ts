@@ -140,6 +140,8 @@ export interface FriendInfo {
     user_displayname: string;
     user_remark: string;
     "wx.verify_flag": "0" | "1";
+    // extension property
+    "wx.avatar"?: string;
 }
 
 // https://justundertaker.github.io/ComWeChatBotClient/action/group.html#%E8%8E%B7%E5%8F%96%E7%BE%A4%E5%88%97%E8%A1%A8
@@ -150,6 +152,8 @@ export type GetGroupListAction = Action<
 export interface GroupInfo {
     group_id: string;
     group_name: string;
+    // extension property
+    "wx.avatar"?: string;
 }
 
 // https://justundertaker.github.io/ComWeChatBotClient/action/file.html#%E4%B8%8A%E4%BC%A0%E6%96%87%E4%BB%B6

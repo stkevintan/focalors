@@ -21,6 +21,7 @@ export class GetGroupListRouteHandler
                 groups.map(async (group) => ({
                     group_id: group.id,
                     group_name: await group.topic(),
+                    "wx.avatar": group.payload?.avatar,
                 }))
             ),
         };
