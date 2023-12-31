@@ -1,0 +1,30 @@
+{
+    "name": "wechat-bridge",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "sourceRoot": "packages/wechat-bridge/src",
+    "projectType": "library",
+    "targets": {
+        "build": {
+            "executor": "@nx/js:swc",
+            "outputs": ["{options.outputPath}"],
+            "options": {
+                "outputPath": "dist/packages/wechat-bridge",
+                "main": "packages/wechat-bridge/src/index.ts",
+                "tsConfig": "packages/wechat-bridge/tsconfig.lib.json",
+                "assets": ["packages/wechat-bridge/*.md"]
+            }
+        },
+        "lint": {
+            "executor": "@nx/eslint:lint",
+            "outputs": ["{options.outputFile}"]
+        },
+        "test": {
+            "executor": "@nx/vite:test",
+            "outputs": ["{options.reportsDirectory}"],
+            "options": {
+                "reportsDirectory": "../../coverage/packages/wechat-bridge"
+            }
+        }
+    },
+    "tags": []
+}

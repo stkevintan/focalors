@@ -3,3 +3,5 @@ dist/
 external/
 logs/
 .env
+
+.nx/cache

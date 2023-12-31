@@ -1,0 +1,33 @@
+{
+    "npmScope": "@trident",
+    "generators": {
+        "@nx/js:library": {
+            "bundler": "swc"
+        }
+    },
+    "targetDefaults": {
+        "build": {
+            "cache": true,
+            "dependsOn": ["^build"]
+        },
+        "test": {
+            "cache": true
+        },
+        "lint": {
+            "cache": true,
+            "inputs": [
+                "default",
+                "{workspaceRoot}/.eslintrc.json",
+                "{workspaceRoot}/.eslintignore",
+                "{workspaceRoot}/eslint.config.js"
+            ]
+        },
+        "@nx/vite:test": {
+            "cache": true,
+            "inputs": ["default", "^default"]
+        }
+    },
+    "affected": {
+        "defaultBase": "master"
+    }
+}

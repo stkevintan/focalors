@@ -1,10 +1,8 @@
 {
-    "name": "@focalors/logger",
+    "name": "@focalors/wechat-ferry-agent",
     "version": "0.0.1",
     "dependencies": {
-        "@swc/helpers": "~0.5.2",
-        "tslog": "^4.8.2",
-        "file-stream-rotator": "^1.0.0"
+        "@swc/helpers": "~0.5.2"
     },
     "type": "commonjs",
     "main": "./src/index.js",

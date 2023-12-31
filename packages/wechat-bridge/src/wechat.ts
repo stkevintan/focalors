@@ -18,7 +18,7 @@ export class Wechat implements AsyncService {
         this.self.on("scan", onScan);
         await this.self.start();
         await this.self.ready();
-        logger.info('wechat started');
+        logger.info("wechat started");
     }
 
     async stop() {
