@@ -1,109 +1,59 @@
-import { format } from "util";
-import { singleton } from "tsyringe";
-import { ScanStatus, types, WechatyBuilder } from "wechaty";
-import qrcodeTerminal from "qrcode-terminal";
-import { logger as parentLogger } from "./logger";
-import { AsyncService, Protocol, YunzaiClient } from "@focalors/yunzai-client";
+import fs from "fs";
+import { inject, InjectionToken } from "tsyringe";
+import { YunzaiClient } from "@focalors/yunzai-client";
+import { Configuration } from "./config";
+import { logger } from "./logger";
+import path from "path";
 
-const logger = parentLogger.getSubLogger({ name: "wechat" });
-@singleton()
-export class Wechat implements AsyncService {
-    private self = WechatyBuilder.build({ name: "focalors-bot" });
-    constructor() {}
-    async start() {
-        logger.info(
-            "wechaty starts with puppet:",
-            process.env["WECHATY_PUPPET"]
-        );
-        this.self.on("scan", onScan);
-        await this.self.start();
-        await this.self.ready();
-        logger.info("wechat started");
+const interval = 30 * 60 * 1000;
+
+export abstract class Wechat {
+    constructor(
+        @inject(Configuration) protected configuration: Configuration
+    ) {}
+
+    private timer?: NodeJS.Timer;
+    protected startFileWatcher() {
+        return setInterval(() => {
+            void this.removeImagesHoursAgo();
+        }, interval);
     }
 
-    async stop() {
-        await this.self.logout();
+    async start(): Promise<void> {
+        this.timer = this.startFileWatcher();
+    }
+    async stop(): Promise<void> {
+        clearInterval(this.timer);
     }
 
-    get bot() {
-        return this.self;
-    }
+    abstract bridge(client: YunzaiClient): void;
 
-    bridge(client: YunzaiClient) {
-        // subscribe bot to client
-        this.self.on("message", (message) => {
-            const talker = message.talker();
-            const room = message.room();
-            if (message.type() !== types.Message.Text) {
-                logger.debug(`unsupported message type: ${message.type()}`);
-                return;
-            }
-            const type = message.talker().type();
-            if (type !== types.Contact.Individual) {
-                logger.debug("unsupported user type:", type);
-                return;
-            }
-            const isRoom = room !== null;
-            if (!isRoom && !talker.friend() && !message.self()) {
-                logger.warn(
-                    `unqualified user:`,
-                    `room(${isRoom}), friend(${talker.friend()}), self(${message.self()})`
-                );
-                return;
-            }
-
-            let text = message.text();
-            // only messages startsWith text will go on.
-            if (!/^\s*#/.test(text)) {
-                logger.warn(`message without prefix #`);
-                return;
-            }
-            // if message startswith `#<space>`, remove the prefix.
-            text = text.replace(/^\s*#\s+/, "");
-            logger.info("message processing:", text);
-            const segment: Protocol.MessageSegment[] = [
-                {
-                    type: "text",
-                    data: { text },
-                },
-            ];
-            if (room) {
-                void client.sendMessageEvent(
-                    segment,
-                    this.self.currentUser.id,
-                    {
-                        groupId: room.id,
-                        userId: talker.id,
+    private async removeImagesHoursAgo() {
+        const dir = this.configuration.imageCacheDirectory;
+        try {
+            const images = await fs.promises.readdir(dir);
+            logger.debug("starting to remove outdated images");
+            const ret = await Promise.allSettled(
+                images.map(async (image) => {
+                    const extname = path.extname(image);
+                    if (extname === ".jpg") {
+                        const fullpath = path.resolve(dir, image);
+                        const stat = await fs.promises.stat(fullpath);
+                        if (Date.now() - stat.atimeMs >= interval) {
+                            await fs.promises.unlink(fullpath);
+                        }
                     }
-                );
-            } else {
-                void client.sendMessageEvent(
-                    segment,
-                    this.self.currentUser.id,
-                    talker.id
-                );
-            }
-        });
+                })
+            );
+            logger.debug(
+                `removed ${
+                    ret.filter((r) => r.status === "fulfilled").length
+                } outdated images`
+            );
+        } catch (err) {
+            logger.debug("clear outdated images failed:", err);
+        }
     }
 }
 
-function onScan(qrcode: string, status: ScanStatus) {
-    if (status === ScanStatus.Waiting || status === ScanStatus.Timeout) {
-        const qrcodeImageUrl = [
-            "https://wechaty.js.org/qrcode/",
-            encodeURIComponent(qrcode),
-        ].join("");
-        logger.info(
-            format(
-                "onScan: %s(%s) - %s",
-                ScanStatus[status],
-                status,
-                qrcodeImageUrl
-            )
-        );
-
-        qrcodeTerminal.generate(qrcode, { small: true }); // show qrcode on console
-    } else {
-        logger.info(format("onScan: %s(%s)", ScanStatus[status], status));
-    }
-}
+export const WechatToken: InjectionToken<Wechat> = "wechat";

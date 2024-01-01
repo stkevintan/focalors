@@ -1,5 +1,4 @@
 {
-    "npmScope": "@trident",
     "generators": {
         "@nx/js:library": {
             "bundler": "swc"

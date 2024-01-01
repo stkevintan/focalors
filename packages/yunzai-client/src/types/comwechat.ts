@@ -1,4 +1,5 @@
 import { PromiseOrNot } from "./common";
+import { UnionToIntersection, TupleToUnion } from "type-fest";
 
 // event
 
@@ -95,21 +96,40 @@ export type MessageSegment =
 export type Event = MetaEvent | MessageEvent;
 
 // actions
-export interface ActionReq<Action extends string, Param = unknown> {
-    action: Action;
+// export interface ActionReq<Action extends string, Param = unknown> {
+//     action: Action;
+//     echo: string;
+//     params: Param;
+// }
+
+export type ActionHandle<P, R> = (params: P) => PromiseOrNot<R>;
+
+export interface ActionReq<P> {
+    action: string;
     echo: string;
-    params: Param;
+    params: P;
 }
 
-export interface ActionRes<Data> {
+export interface ActionRes<R> {
     echo: string;
-    data: Data;
+    data: R;
 }
 
-export type Action<
-    Req extends ActionReq<string> = ActionReq<string>,
-    Res extends ActionRes<any> = ActionRes<any>
-> = [req: Req, res: Res];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type Action<K extends string = string, P = any, R = unknown> = {
+    name: K;
+    handle: ActionHandle<P, R>;
+};
+
+// export interface ActionRes<Data> {
+//     echo: string;
+//     data: Data;
+// }
+
+// export type Action<
+//     Req extends ActionReq<string> = ActionReq<string>,
+//     Res extends ActionRes<any> = ActionRes<any>
+// > = [req: Req, res: Res];
 
 export interface BotStatus {
     online: boolean;
@@ -120,20 +140,19 @@ export interface BotStatus {
 }
 
 export type GetStatusAction = Action<
-    ActionReq<"get_status">,
-    ActionRes<{ good: boolean; bots: BotStatus[] }>
+    "get_status",
+    void,
+    { good: boolean; bots: BotStatus[] }
 >;
 
 export type GetSelfInfoAction = Action<
-    ActionReq<"get_self_info">,
-    ActionRes<{ user_id: string; user_name: string; user_displayname: string }>
+    "get_self_info",
+    void,
+    { user_id: string; user_name: string; user_displayname: string }
 >;
 
 // https://justundertaker.github.io/ComWeChatBotClient/action/private.html#%E8%8E%B7%E5%8F%96%E5%A5%BD%E5%8F%8B%E5%88%97%E8%A1%A8
-export type GetFriendListAction = Action<
-    ActionReq<"get_friend_list">,
-    ActionRes<FriendInfo[]>
->;
+export type GetFriendListAction = Action<"get_friend_list", void, FriendInfo[]>;
 export interface FriendInfo {
     user_id: string;
     user_name: string;
@@ -145,10 +164,8 @@ export interface FriendInfo {
 }
 
 // https://justundertaker.github.io/ComWeChatBotClient/action/group.html#%E8%8E%B7%E5%8F%96%E7%BE%A4%E5%88%97%E8%A1%A8
-export type GetGroupListAction = Action<
-    ActionReq<"get_group_list">,
-    ActionRes<GroupInfo[]>
->;
+export type GetGroupListAction = Action<"get_group_list", void, GroupInfo[]>;
+
 export interface GroupInfo {
     group_id: string;
     group_name: string;
@@ -158,11 +175,9 @@ export interface GroupInfo {
 
 // https://justundertaker.github.io/ComWeChatBotClient/action/file.html#%E4%B8%8A%E4%BC%A0%E6%96%87%E4%BB%B6
 export type UploadFileAction = Action<
-    ActionReq<
-        "upload_file",
-        FileTrait & { name: string; headers?: Record<string, string> }
-    >,
-    ActionRes<{ file_id: string }>
+    "upload_file",
+    FileTrait & { name: string; headers?: Record<string, string> },
+    { file_id: string }
 >;
 
 interface UrlFileTrait {
@@ -183,8 +198,9 @@ type FileTrait = UrlFileTrait | PathFileTrait | DataFileTrait;
 
 // https://justundertaker.github.io/ComWeChatBotClient/action/message.html#%E5%8F%91%E9%80%81%E6%B6%88%E6%81%AF
 export type SendMessageAction = Action<
-    ActionReq<"send_message", MessageTarget & { message: MessageSegment[] }>,
-    ActionRes<boolean>
+    "send_message",
+    MessageTarget & { message: MessageSegment[] },
+    boolean
 >;
 
 export interface UplaodFileParam {
@@ -196,8 +212,9 @@ export interface UplaodFileParam {
 
 // https://justundertaker.github.io/ComWeChatBotClient/action/group.html#%E8%8E%B7%E5%8F%96%E7%BE%A4%E6%88%90%E5%91%98%E4%BF%A1%E6%81%AF
 export type GetGroupMemberInfoAction = Action<
-    ActionReq<"get_group_member_info", { group_id: string; user_id: string }>,
-    ActionRes<{
+    "get_group_member_info",
+    { group_id: string; user_id: string },
+    {
         user_id: string;
         user_name: string;
         user_displayname: string;
@@ -206,19 +223,29 @@ export type GetGroupMemberInfoAction = Action<
         "wx.nation"?: string;
         "wx.province"?: string;
         "wx.city"?: string;
-    }>
+    }
 >;
 
-export type KnownAction =
-    | GetStatusAction
-    | GetSelfInfoAction
-    | GetFriendListAction
-    | GetGroupListAction
-    | GetGroupMemberInfoAction
-    | UploadFileAction
-    | SendMessageAction;
+export type KnownActions = [
+    GetStatusAction,
+    GetSelfInfoAction,
+    GetFriendListAction,
+    GetGroupListAction,
+    GetGroupMemberInfoAction,
+    UploadFileAction,
+    SendMessageAction
+];
 
-export interface ActionRouteHandler<T extends Action = Action> {
-    action: T[0]["action"];
-    handle: (req: T[0]) => PromiseOrNot<T[1]>;
-}
+export type KnownAction = TupleToUnion<KnownActions>;
+export type ActionType<T extends Action> = T extends Action<infer R>
+    ? R
+    : never;
+export type KnownActionType = ActionType<KnownAction>;
+export type ActionMap<T extends Action> = UnionToIntersection<
+    T extends Action<infer R> ? { [K in R]: T } : never
+>;
+export type KnownActionMap = ActionMap<KnownAction>;
+// export interface ActionRouteHandler<T extends Action = Action> {
+//     action: T[0]["action"];
+//     handle: (req: T[0]) => PromiseOrNot<T[1]>;
+// }

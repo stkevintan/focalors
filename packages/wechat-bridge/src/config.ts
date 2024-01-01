@@ -16,6 +16,6 @@ export class Configuration extends YunzaiConfiguration {
         }
     }
     readonly imageCacheDirectory =
-        process.env.FOCALORS_IMAGE_CACHE_DIR ||
+        process.env['FOCALORS_IMAGE_CACHE_DIR'] ||
         path.resolve(os.tmpdir(), "yunzai-cache");
 }

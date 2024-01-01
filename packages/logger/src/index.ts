@@ -5,6 +5,8 @@ import { ILogObj, IMeta, ISettingsParam, Logger } from "tslog";
 import * as fileStreamRotator from "file-stream-rotator";
 
 export interface CreateLoggerParams extends ISettingsParam<unknown> {
+    // make nxjs swc build happy
+    name?: string;
     filename?: string;
     frequency?: string;
     size?: string;

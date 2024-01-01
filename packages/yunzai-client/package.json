@@ -5,7 +5,10 @@
         "@swc/helpers": "~0.5.2",
         "reflect-metadata": "^0.1.13",
         "tsyringe": "^4.7.0",
-        "ws": "^8.13.0"
+        "ws": "^8.16.0"
+    },
+    "devDependencies": {
+        "@types/ws": "^8.5.10"
     },
     "type": "commonjs",
     "main": "./src/index.js",

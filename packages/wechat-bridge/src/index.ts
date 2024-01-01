@@ -1,14 +1,13 @@
 import "reflect-metadata";
+import { Constructor } from "type-fest";
 import * as dotenv from "dotenv";
 import { container, inject, injectable } from "tsyringe";
-// init routes
-import "./routes";
 import {
     AsyncService,
     Configuration as YunzaiConfiguration,
     YunzaiClient,
 } from "@focalors/yunzai-client";
-import { Wechat } from "./wechat";
+import { Wechat, WechatToken } from "./wechat";
 import { logger } from "./logger";
 import { Configuration } from "./config";
 
@@ -21,10 +20,11 @@ container.register(YunzaiConfiguration, { useToken: Configuration });
 export class Program implements AsyncService {
     constructor(
         @inject(YunzaiClient) private client: YunzaiClient,
-        @inject(Wechat) private wechat: Wechat
+        @inject(WechatToken) private wechat: Wechat
     ) {}
 
-    static create() {
+    static create(wechatImpl: Constructor<Wechat>) {
+        container.register(WechatToken, wechatImpl);
         return container.resolve(Program);
     }
 

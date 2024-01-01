@@ -1,31 +1,40 @@
 import ws from "ws";
 import { EventEmitter } from "events";
 
-import { inject, injectable, injectAll } from "tsyringe";
+import { inject, injectable } from "tsyringe";
 import { randomInt, randomUUID } from "crypto";
 
-import { TOKENS } from "./tokens";
 import { AsyncService, Protocol } from "./types";
 import { Configuration } from "./config";
 import { Defer } from "./utils/defer";
 import { logger } from "./logger";
 
 @injectable()
-export class YunzaiClient extends EventEmitter implements AsyncService {
+export class YunzaiClient implements AsyncService {
     private client?: ws;
+    private eventSub: EventEmitter;
 
     constructor(
-        @inject(Configuration) private configuration: Configuration,
-        @injectAll(TOKENS.routes)
-        handlers: Protocol.ActionRouteHandler[]
+        @inject(Configuration) private configuration: Configuration
+    ) // @injectAll(TOKENS.routes)
+    // handlers: Protocol.ActionRouteHandler[]
+    {
+        this.eventSub = new EventEmitter({ captureRejections: true });
+        this.eventSub.setMaxListeners(0);
+    }
+
+    on<K extends Protocol.KnownActionType>(
+        eventName: K,
+        handle: Protocol.KnownActionMap[K]["handle"]
     ) {
-        super({
-            captureRejections: true,
-        });
-        this.setMaxListeners(handlers.length * 2);
-        for (const handler of handlers) {
-            this.on(handler.action, this.wrapHandler(handler));
-        }
+        this.eventSub.on(eventName, this.wrapHandler(eventName, handle));
+        return () => {
+            this.eventSub.off(eventName, this.wrapHandler(eventName, handle));
+        };
+    }
+
+    removeAllEvents<K extends Protocol.KnownActionType>(eventName?: K) {
+        this.eventSub.removeAllListeners(eventName);
     }
 
     async start(): Promise<void> {
@@ -45,8 +54,8 @@ export class YunzaiClient extends EventEmitter implements AsyncService {
         // wait for websocket opened
         await waitFor(this.client, "open");
         await Promise.all([
-            waitFor(this, "get_group_list"),
-            waitFor(this, "get_friend_list"),
+            waitFor(this.eventSub, "get_group_list"),
+            waitFor(this.eventSub, "get_friend_list"),
             this.ping(),
         ]);
         return this.client;
@@ -60,7 +69,7 @@ export class YunzaiClient extends EventEmitter implements AsyncService {
     }
 
     private async ping() {
-        await this.send({
+        await this.rawSend({
             id: randomUUID(),
             type: "meta",
             time: Date.now(),
@@ -83,19 +92,21 @@ export class YunzaiClient extends EventEmitter implements AsyncService {
             logger.warn("empty message received, stop processing");
             return;
         }
-        const req = JSON.parse(String(data)) as Protocol.KnownAction[0];
+        const req = JSON.parse(
+            data.toString("utf8")
+        ) as Protocol.ActionReq<unknown>;
         if (null === req || typeof req !== "object") {
             logger.warn("Unexpected message received", req);
         }
-        this.emit(req.action, req);
+        this.eventSub.emit(req.action, req);
     }
 
-    async send(
+    private async rawSend(
         event: Protocol.Event | Protocol.ActionRes<unknown>
     ): Promise<void> {
         if (this.client) {
             const defer = new Defer<void>();
-            this.client.send(JSON.stringify(event), (err) =>
+            this.client.send(JSON.stringify(event), (err: unknown) =>
                 err ? defer.reject(err) : defer.resolve()
             );
             await defer.promise;
@@ -104,27 +115,33 @@ export class YunzaiClient extends EventEmitter implements AsyncService {
         }
     }
 
-    private wrapHandler(handler: Protocol.ActionRouteHandler) {
-        return async (req: Protocol.ActionReq<string>) => {
+    private wrapHandler<T extends Protocol.KnownAction>(
+        actionType: T["name"],
+        handle: T["handle"]
+    ) {
+        return async ({
+            params,
+            echo,
+        }: Protocol.ActionReq<Parameters<T["handle"]>[0]>) => {
             try {
-                logger.debug(`Starting to execute handler of ${req.action}`);
-                const res = await handler.handle(req);
+                logger.debug(`Starting to execute handler of ${actionType}`);
+                const res = await handle(params as never);
                 if (res) {
-                    await this.send(res);
+                    await this.rawSend({ echo, data: res });
                 }
                 logger.debug(
-                    `Event handler of ${req.action} executed successfully`
+                    `Event handler of ${actionType} executed successfully`
                 );
             } catch (err) {
                 logger.debug(
-                    `Event handler of ${req.action} failed to execute:`,
+                    `Event handler of ${actionType} failed to execute:`,
                     err
                 );
             }
         };
     }
 
-    async sendMessageEvent(
+    async send(
         message: Protocol.MessageSegment[],
         from: string,
         to: string | { userId: string; groupId: string }
@@ -133,7 +150,7 @@ export class YunzaiClient extends EventEmitter implements AsyncService {
         if (!this.client || this.client.readyState > ws.OPEN) {
             await this.connect();
         }
-        await this.send({
+        await this.rawSend({
             type: "message",
             id: randomUUID(),
             time: Date.now(),

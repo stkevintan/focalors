@@ -1,6 +1,6 @@
 {
     "compilerOptions": {
-        "target": "ES2022",
+        "target": "ESNext",
         "experimentalDecorators": true,
         "emitDecoratorMetadata": true,
         "module": "CommonJS",
@@ -17,9 +17,11 @@
         "paths": {
             "@focalors/logger": ["packages/logger/src/index.ts"],
             "@focalors/wechat-bridge": ["packages/wechat-bridge/src/index.ts"],
+             "@focalors/wechat-bridge/wechat": ["packages/wechat-bridge/src/wechat.ts"],
             "@focalors/wechat-ferry-agent": [
                 "packages/wechat-ferry-agent/src/index.ts"
             ],
+            "@focalors/wechaty-agent": ["packages/wechaty-agent/src/index.ts"],
             "@focalors/yunzai-client": ["packages/yunzai-client/src/index.ts"]
         }
     }
