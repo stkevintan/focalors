@@ -75,7 +75,11 @@ export class WcfClient {
         return `http://${host}:${port}${path}`;
     }
 
-    private async request<T>(path: string, options?: RequestInit): Promise<T> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    private async request<T = any>(
+        path: string,
+        options?: RequestInit
+    ): Promise<T> {
         const url = path.startsWith("http") ? path : this.getUrl(path);
 
         const headers: HeadersInit = { accept: "application/json" };
@@ -95,7 +99,9 @@ export class WcfClient {
     }
 
     async getCurrentUser() {
-        return await this.request<UserInfo>("/user-info");
+        return await this.request<{ ui: UserInfo }>("/user-info").then(
+            (data) => data.ui
+        );
     }
 
     /*
@@ -108,12 +114,12 @@ export class WcfClient {
         "city": "Hangzhou",
         "gender": "男"
     */
-    async getFriendList() {
-        return await this.request<Contact[]>("/friends");
+    async getFriendList(): Promise<Contact[]> {
+        return await this.request("/friends").then((d) => d.friends);
     }
 
-    async getContacts() {
-        return await this.request<Contact[]>("/contacts");
+    async getContacts(): Promise<Contact[]> {
+        return await this.request("/contacts").then((d) => d.contacts);
     }
 
     async getContact(wxid: string | ((c: Contact) => boolean)) {

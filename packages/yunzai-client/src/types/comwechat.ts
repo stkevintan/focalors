@@ -33,7 +33,7 @@ interface MessageEventBase {
 
 export type MessageEvent = MessageEventBase & MessageTarget;
 
-export interface MetaEvent {
+export interface MetaConnectEvent {
     id: string;
     type: "meta";
     time: number;
@@ -48,6 +48,15 @@ export interface MetaEvent {
         version: "1.2.0";
         onebot_version: "12";
     };
+}
+
+export interface MetaStatusUpdateEvent {
+    id: string;
+    type: "meta";
+    time: number;
+    sub_type: "";
+    detail_type: "status_update";
+    status: ReturnType<GetStatusAction["handle"]>;
 }
 
 export interface TextMessageSegment {
@@ -93,7 +102,7 @@ export type MessageSegment =
     | ReplyMessageSegment
     | WxEmojiMessageSegment;
 
-export type Event = MetaEvent | MessageEvent;
+export type Event = MetaConnectEvent | MetaStatusUpdateEvent | MessageEvent;
 
 // actions
 // export interface ActionReq<Action extends string, Param = unknown> {
@@ -226,8 +235,16 @@ export type GetGroupMemberInfoAction = Action<
     }
 >;
 
+// https://justundertaker.github.io/ComWeChatBotClient/action/meta.html#%E8%8E%B7%E5%8F%96%E7%89%88%E6%9C%AC%E4%BF%A1%E6%81%AF
+export type GetVersionAction = Action<
+    "get_version",
+    void,
+    { impl: "ComWechat"; version: string; onebot_version: string }
+>;
+
 export type KnownActions = [
     GetStatusAction,
+    GetVersionAction,
     GetSelfInfoAction,
     GetFriendListAction,
     GetGroupListAction,

@@ -19,7 +19,8 @@ export class Program implements AsyncService {
     async start() {
         // wechat first
         await this.wechat.start();
-        // await this.client.start();
+        await this.client.start();
+
         // bridge wechat and client
         this.wechat.bridge(this.client);
         logger.info("program started");

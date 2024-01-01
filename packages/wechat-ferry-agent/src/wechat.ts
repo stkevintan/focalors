@@ -6,6 +6,8 @@ import { logger } from "./logger";
 import { WcfConfiguration } from "./config";
 import assert from "assert";
 import path from "path";
+import { randomUUID } from "crypto";
+import { FileBox } from "file-box";
 
 @singleton()
 export class WechatFerry extends Wechat {
@@ -22,6 +24,7 @@ export class WechatFerry extends Wechat {
     override async start(): Promise<void> {
         this.wcfClient.start();
         this.currentUser = await this.wcfClient.getCurrentUser();
+        logger.info("wechat-ferry started");
     }
 
     override async stop(): Promise<void> {
@@ -33,18 +36,20 @@ export class WechatFerry extends Wechat {
             this.currentUser,
             "No current user, please make sure agent has been started"
         );
+
         this.wcfClient.on("message", (message) => {
             logger.info(
                 "Received Message:",
                 message.sender,
                 message.isGroup,
-                message.content
+                message.content,
+                message.type
             );
             if (
                 message.type !== MessageType.Text &&
                 message.type !== MessageType.Reply
             ) {
-                logger.debug(
+                logger.warn(
                     `Unsupported message type: ${MessageType[message.type]} (${
                         message.type
                     })`
@@ -52,13 +57,16 @@ export class WechatFerry extends Wechat {
                 return;
             }
             if (message.isSelf) {
-                logger.debug(`Self message, skip...`);
+                logger.warn(`Self message, skip...`);
                 return;
             }
+
             const text = message.text;
             if (!/^\s*#/.test(text)) {
-                logger.debug(`Message without prefix #, skip...`);
+                logger.warn(`Message without prefix #, skip...`);
             }
+
+            logger.info("Received text:", text);
             const segment: Protocol.MessageSegment[] = [
                 {
                     type: "text",
@@ -176,6 +184,29 @@ export class WechatFerry extends Wechat {
             }
             return ok;
         });
+
+        client.on("upload_file", async (file) => {
+            const dir = this.configuration.imageCacheDirectory;
+            const name = randomUUID();
+            const imagePath = path.resolve(dir, `${name}.jpg`);
+            const filebox = toFileBox(file, `${name}.jpg`);
+            if (filebox) {
+                logger.info("successfully write image cache into:", imagePath);
+                await filebox.toFile(imagePath, true);
+            }
+
+            return {
+                file_id: name,
+            };
+        });
+        client.on("get_version", async () => {
+            return {
+                impl: "ComWechat",
+                version: "0.0.8",
+                onebot_version: "0.0.8",
+            };
+        });
+        client.sendReadySignal(this.currentUser!.wxid);
     }
 
     private async sendMessageToUser(
@@ -273,4 +304,18 @@ function stripCommandHeader(text: string, shouldDo = false) {
         return text.replace(/^\s*#*/g, "");
     }
     return text;
+}
+
+function toFileBox(
+    file: Parameters<Protocol.UploadFileAction["handle"]>[0],
+    name?: string
+) {
+    switch (file.type) {
+        case "data":
+            return FileBox.fromBase64(file.data, name);
+        case "path":
+            return FileBox.fromFile(file.path, name);
+        case "url":
+            return FileBox.fromUrl(file.url, { headers: file.headers, name });
+    }
 }

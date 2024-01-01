@@ -205,6 +205,15 @@ export class Wechaty extends Wechat {
                 file_id: name,
             };
         });
+
+        client.on("get_version", async () => {
+            return {
+                impl: "ComWechat",
+                version: "0.0.8",
+                onebot_version: "0.0.8",
+            };
+        });
+        client.sendReadySignal(this.bot.currentUser.id);
     }
 
     private async sendMessageToUser(

@@ -9,28 +9,33 @@ import { Configuration } from "./config";
 import { Defer } from "./utils/defer";
 import { logger } from "./logger";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Callback = (...args: any[]) => void;
 @injectable()
 export class YunzaiClient implements AsyncService {
     private client?: ws;
-    private eventSub: EventEmitter;
+    private eventSub: Record<string, Set<Callback>> = {};
 
-    constructor(@inject(Configuration) private configuration: Configuration) {
-        this.eventSub = new EventEmitter({ captureRejections: true });
-        this.eventSub.setMaxListeners(0);
-    }
+    constructor(@inject(Configuration) private configuration: Configuration) {}
 
     on<K extends Protocol.KnownActionType>(
         eventName: K,
         handle: Protocol.KnownActionMap[K]["handle"]
     ) {
-        this.eventSub.on(eventName, this.wrapHandler(eventName, handle));
+        const handler = this.wrapHandler(eventName, handle);
+        this.eventSub[eventName] ??= new Set();
+        this.eventSub[eventName].add(handler);
         return () => {
-            this.eventSub.off(eventName, this.wrapHandler(eventName, handle));
+            this.eventSub[eventName]?.delete(handler);
         };
     }
 
     removeAllEvents<K extends Protocol.KnownActionType>(eventName?: K) {
-        this.eventSub.removeAllListeners(eventName);
+        if (eventName) {
+            delete this.eventSub[eventName];
+        } else {
+            this.eventSub = {};
+        }
     }
 
     async start(): Promise<void> {
@@ -49,11 +54,6 @@ export class YunzaiClient implements AsyncService {
         this.client.on("message", this.onClientMessage.bind(this));
         // wait for websocket opened
         await waitFor(this.client, "open");
-        await Promise.all([
-            waitFor(this.eventSub, "get_group_list"),
-            waitFor(this.eventSub, "get_friend_list"),
-            this.ping(),
-        ]);
         return this.client;
     }
 
@@ -83,6 +83,30 @@ export class YunzaiClient implements AsyncService {
         });
     }
 
+    async sendReadySignal(uid: string) {
+        // await Promise.all([this.ping()]);
+        await this.ping();
+        await this.rawSend({
+            id: randomUUID(),
+            type: "meta",
+            time: Date.now(),
+            sub_type: "",
+            detail_type: "status_update",
+            status: {
+                good: true,
+                bots: [
+                    {
+                        online: true,
+                        self: {
+                            platform: "wechat",
+                            user_id: uid,
+                        },
+                    },
+                ],
+            },
+        });
+    }
+
     private onClientMessage(data: ws.RawData) {
         if (!data) {
             logger.warn("empty message received, stop processing");
@@ -94,7 +118,13 @@ export class YunzaiClient implements AsyncService {
         if (null === req || typeof req !== "object") {
             logger.warn("Unexpected message received", req);
         }
-        this.eventSub.emit(req.action, req);
+        logger.debug("Received client message:", req);
+        const set = this.eventSub[req.action];
+        if (!set) {
+            logger.warn("No handle registered to event:", req.action, this.eventSub);
+        } else {
+            this.eventSub[req.action].forEach((handle) => handle(req));
+        }
     }
 
     private async rawSend(
@@ -119,6 +149,7 @@ export class YunzaiClient implements AsyncService {
             params,
             echo,
         }: Protocol.ActionReq<Parameters<T["handle"]>[0]>) => {
+            logger.info("Exec handle:", actionType);
             try {
                 logger.debug(`Starting to execute handler of ${actionType}`);
                 const res = await handle(params as never);
