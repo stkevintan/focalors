@@ -14,11 +14,7 @@ export class YunzaiClient implements AsyncService {
     private client?: ws;
     private eventSub: EventEmitter;
 
-    constructor(
-        @inject(Configuration) private configuration: Configuration
-    ) // @injectAll(TOKENS.routes)
-    // handlers: Protocol.ActionRouteHandler[]
-    {
+    constructor(@inject(Configuration) private configuration: Configuration) {
         this.eventSub = new EventEmitter({ captureRejections: true });
         this.eventSub.setMaxListeners(0);
     }

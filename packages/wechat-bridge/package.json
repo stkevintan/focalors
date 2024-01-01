@@ -2,10 +2,7 @@
     "name": "@focalors/wechat-bridge",
     "version": "0.0.1",
     "dependencies": {
-        "@swc/helpers": "~0.5.2",
-        "dotenv": "^16.0.3",
-        "reflect-metadata": "^0.1.13",
-        "tsyringe": "^4.7.0"
+        "@swc/helpers": "~0.5.2"
     },
     "type": "commonjs",
     "main": "./src/index.js",

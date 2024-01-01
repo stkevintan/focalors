@@ -17,7 +17,6 @@
         "paths": {
             "@focalors/logger": ["packages/logger/src/index.ts"],
             "@focalors/wechat-bridge": ["packages/wechat-bridge/src/index.ts"],
-             "@focalors/wechat-bridge/wechat": ["packages/wechat-bridge/src/wechat.ts"],
             "@focalors/wechat-ferry-agent": [
                 "packages/wechat-ferry-agent/src/index.ts"
             ],

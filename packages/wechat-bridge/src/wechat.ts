@@ -8,23 +8,18 @@ import path from "path";
 const interval = 30 * 60 * 1000;
 
 export abstract class Wechat {
-    constructor(
-        @inject(Configuration) protected configuration: Configuration
-    ) {}
+    constructor(@inject(Configuration) protected configuration: Configuration) {
+        this.startFileWatcher();
+    }
 
-    private timer?: NodeJS.Timer;
     protected startFileWatcher() {
         return setInterval(() => {
             void this.removeImagesHoursAgo();
         }, interval);
     }
 
-    async start(): Promise<void> {
-        this.timer = this.startFileWatcher();
-    }
-    async stop(): Promise<void> {
-        clearInterval(this.timer);
-    }
+    abstract start(): Promise<void>;
+    abstract stop(): Promise<void>;
 
     abstract bridge(client: YunzaiClient): void;
 

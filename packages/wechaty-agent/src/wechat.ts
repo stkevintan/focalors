@@ -10,14 +10,12 @@ import {
     WechatyBuilder,
 } from "wechaty";
 import qrcodeTerminal from "qrcode-terminal";
-import { logger as parentLogger } from "./logger";
+import { logger } from "./logger";
 import { Protocol, YunzaiClient } from "@focalors/yunzai-client";
-import { Wechat } from "@focalors/wechat-bridge/wechat";
+import { Wechat } from "@focalors/wechat-bridge";
 import assert from "assert";
 import path from "path";
 import { randomUUID } from "crypto";
-
-const logger = parentLogger.getSubLogger({ name: "wechat" });
 
 @singleton()
 export class Wechaty extends Wechat {

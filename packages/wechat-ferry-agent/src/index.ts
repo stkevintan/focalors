@@ -1,1 +1,1 @@
-export * from "./lib/webchat-ferry-agent";
+export * from './wechat';
