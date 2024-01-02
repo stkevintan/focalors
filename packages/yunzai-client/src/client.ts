@@ -9,33 +9,26 @@ import { Configuration } from "./config";
 import { Defer } from "./utils/defer";
 import { logger } from "./logger";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Callback = (...args: any[]) => void;
 @injectable()
 export class YunzaiClient implements AsyncService {
     private client?: ws;
-    private eventSub: Record<string, Set<Callback>> = {};
+    private eventSub = new EventEmitter({ captureRejections: true });
 
     constructor(@inject(Configuration) private configuration: Configuration) {}
 
     on<K extends Protocol.KnownActionType>(
         eventName: K,
-        handle: Protocol.KnownActionMap[K]["handle"]
+        handler: Protocol.KnownActionMap[K]["handler"]
     ) {
-        const handler = this.wrapHandler(eventName, handle);
-        this.eventSub[eventName] ??= new Set();
-        this.eventSub[eventName].add(handler);
+        const handler2 = this.wrapHandler(eventName, handler);
+        this.eventSub.on(eventName, handler2);
         return () => {
-            this.eventSub[eventName]?.delete(handler);
+            this.eventSub.off(eventName, handler2);
         };
     }
 
     removeAllEvents<K extends Protocol.KnownActionType>(eventName?: K) {
-        if (eventName) {
-            delete this.eventSub[eventName];
-        } else {
-            this.eventSub = {};
-        }
+        this.eventSub.removeAllListeners(eventName);
     }
 
     async start(): Promise<void> {
@@ -118,15 +111,14 @@ export class YunzaiClient implements AsyncService {
             logger.warn("Unexpected message received", req);
         }
         logger.debug("Received client message:", dontOutputBase64(req));
-        const set = this.eventSub[req.action];
-        if (!set) {
+        if (this.eventSub.listenerCount(req.action) === 0) {
             logger.warn(
-                "No handle registered to event:",
+                "No handler registered to event:",
                 req.action,
                 this.eventSub
             );
         } else {
-            this.eventSub[req.action].forEach((handle) => handle(req));
+            this.eventSub.emit(req.action, req);
         }
     }
 
@@ -146,15 +138,15 @@ export class YunzaiClient implements AsyncService {
 
     private wrapHandler<T extends Protocol.KnownAction>(
         actionType: T["name"],
-        handle: T["handle"]
+        handler: T["handler"]
     ) {
         return async ({
             params,
             echo,
-        }: Protocol.ActionReq<Parameters<T["handle"]>[0]>) => {
+        }: Protocol.ActionReq<Parameters<T["handler"]>[0]>) => {
             try {
                 logger.debug(`Starting to execute handler of ${actionType}`);
-                const res = await handle(params as never);
+                const res = await handler(params as never);
                 if (res) {
                     await this.rawSend({ echo, data: res });
                 }

@@ -56,7 +56,7 @@ export interface MetaStatusUpdateEvent {
     time: number;
     sub_type: "";
     detail_type: "status_update";
-    status: ReturnType<GetStatusAction["handle"]>;
+    status: ReturnType<GetStatusAction["handler"]>;
 }
 
 export interface TextMessageSegment {
@@ -127,7 +127,7 @@ export interface ActionRes<R> {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Action<K extends string = string, P = any, R = unknown> = {
     name: K;
-    handle: ActionHandle<P, R>;
+    handler: ActionHandle<P, R>;
 };
 
 // export interface ActionRes<Data> {
