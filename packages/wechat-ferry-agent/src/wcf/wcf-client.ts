@@ -38,6 +38,7 @@ export class WcfClient {
                         this.eventSub.emit("message", jsonData);
                         res.end();
                     } catch (error) {
+                        logger.error("Handling wcf message error:", error);
                         res.writeHead(400, {
                             "Content-Type": "text/plain",
                         });
@@ -64,8 +65,9 @@ export class WcfClient {
     }
 
     on(eventName: "message", callback: (data: WcfMessage) => void) {
-        const listener = (message: RawMessage) =>
+        const listener = (message: RawMessage) => {
             callback(new WcfMessage(message));
+        }
         this.eventSub.on(eventName, listener);
         return () => this.eventSub.off(eventName, listener);
     }

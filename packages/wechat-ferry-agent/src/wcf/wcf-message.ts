@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { XMLParser } from "fast-xml-parser";
+import { logger } from "../logger";
 
 /*
 "0": "朋友圈消息",
@@ -96,7 +97,7 @@ const xmlParser: XMLParser = new XMLParser({
 export class WcfMessage {
     constructor(private readonly message: RawMessage) {}
 
-    private _contentCache = undefined;
+    private _contentCache?: string | Record<string, any> = undefined;
 
     get raw() {
         return this.message;
@@ -130,11 +131,17 @@ export class WcfMessage {
         if (this._contentCache) {
             return this._contentCache;
         }
-        return (this._contentCache =
-            this.type === MessageType.Text
-                ? xmlParser.parse(stripXMLVer(this.message.content as string))
-                : // impossible
-                  this.message.content);
+        const { content } = this.message;
+        try {
+            if (hasXMLHeader(content)) {
+                return (this._contentCache = xmlParser.parse(
+                    stripXMLVer(this.message.content)
+                ));
+            }
+        } catch (err) {
+            logger.error("Parse wcf message content error:", err);
+        }
+        return (this._contentCache = content);
     }
 
     get text() {
@@ -151,6 +158,10 @@ export class WcfMessage {
     get sender() {
         return this.message.sender;
     }
+}
+
+function hasXMLHeader(content: string) {
+    return /^<\?xml version="1.0"\?>/.test(content);
 }
 
 function stripXMLVer<T>(content: T) {

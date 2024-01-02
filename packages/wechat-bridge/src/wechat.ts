@@ -45,9 +45,9 @@ export abstract class Wechat {
             this.self,
             "No current user, please make sure agent has been started"
         );
-        this.bot.on("message", (message) =>
-            this.bridgeForward(client, message)
-        );
+        this.bot.on("message", (message) => {
+            this.bridgeForward(client, message);
+        });
         client.on("get_version", this.bridgeGetVersion.bind(this));
         client.on("get_self_info", this.bridgeGetSelfInfo.bind(this));
         client.on("get_status", this.bridgeGetStatus.bind(this));
