@@ -3,8 +3,7 @@
     "version": "0.0.1",
     "dependencies": {
         "@swc/helpers": "~0.5.2",
-        "fast-xml-parser": "^4.3.2",
-        "file-box": "^1.4.15"
+        "fast-xml-parser": "^4.3.2"
     },
     "type": "commonjs",
     "main": "./src/index.js",

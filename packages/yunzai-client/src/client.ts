@@ -84,7 +84,6 @@ export class YunzaiClient implements AsyncService {
     }
 
     async sendReadySignal(uid: string) {
-        // await Promise.all([this.ping()]);
         await this.ping();
         await this.rawSend({
             id: randomUUID(),

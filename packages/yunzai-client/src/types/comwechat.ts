@@ -262,7 +262,7 @@ export type ActionMap<T extends Action> = UnionToIntersection<
     T extends Action<infer R> ? { [K in R]: T } : never
 >;
 export type KnownActionMap = ActionMap<KnownAction>;
-// export interface ActionRouteHandler<T extends Action = Action> {
-//     action: T[0]["action"];
-//     handle: (req: T[0]) => PromiseOrNot<T[1]>;
-// }
+
+export type ActionParam<T extends Action> = T extends Action<string, infer P, unknown> ? P : never;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type ActionReturn<T extends Action> = T extends Action<string, any, infer R> ? R : never;

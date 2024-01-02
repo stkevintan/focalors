@@ -108,6 +108,9 @@ importers:
       '@swc/helpers':
         specifier: ~0.5.2
         version: 0.5.3
+      file-box:
+        specifier: ^1.4.15
+        version: 1.4.15
 
   packages/wechat-ferry-agent:
     dependencies:
@@ -117,18 +120,12 @@ importers:
       fast-xml-parser:
         specifier: ^4.3.2
         version: 4.3.2
-      file-box:
-        specifier: ^1.4.15
-        version: 1.4.15
 
   packages/wechaty-agent:
     dependencies:
       '@swc/helpers':
         specifier: ~0.5.2
         version: 0.5.3
-      file-box:
-        specifier: ^1.4.15
-        version: 1.4.15
       qrcode-terminal:
         specifier: ^0.12.0
         version: 0.12.0
@@ -3009,7 +3006,7 @@ packages:
     dependencies:
       '@types/http-cache-semantics': 4.0.4
       '@types/keyv': 3.1.4
-      '@types/node': 18.15.13
+      '@types/node': 18.7.1
       '@types/responselike': 1.0.3
     dev: true
 
@@ -3071,7 +3068,7 @@ packages:
   /@types/responselike@1.0.3:
     resolution: {integrity: sha512-H/+L+UkTV33uf49PH5pCAUBVPNj2nDBXTN+qS1dOwyyg24l3CcicicCA7ca+HMvJBZcFgl5r8e+RR6elsb4Lyw==}
     dependencies:
-      '@types/node': 18.15.13
+      '@types/node': 18.7.1
     dev: true
 
   /@types/semver@7.5.6:

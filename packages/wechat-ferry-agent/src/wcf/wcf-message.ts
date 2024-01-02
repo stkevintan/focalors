@@ -86,6 +86,7 @@ const xmlPattern = /^<(msg|msgsource)>/;
 const xmlParser: XMLParser = new XMLParser({
     ignoreAttributes: true,
     tagValueProcessor: (tagName, tagValue) => {
+        tagValue = stripXMLVer(tagValue);
         if (xmlPattern.test(tagValue)) {
             return xmlParser.parse(tagValue);
         }
@@ -131,13 +132,7 @@ export class WcfMessage {
         }
         return (this._contentCache =
             this.type === MessageType.Text
-                ? this.message.content
-                : this.message.content.startsWith(`<?xml version="1.0"?>`)
-                ? xmlParser.parse(
-                      this.message.content.substring(
-                          `<?xml version="1.0"?>`.length + 1
-                      )
-                  )
+                ? xmlParser.parse(stripXMLVer(this.message.content as string))
                 : // impossible
                   this.message.content);
     }
@@ -156,4 +151,11 @@ export class WcfMessage {
     get sender() {
         return this.message.sender;
     }
+}
+
+function stripXMLVer<T>(content: T) {
+    if (typeof content === "string") {
+        return content.replace(/^<\?xml version="1.0"\?>/, "");
+    }
+    return content;
 }
