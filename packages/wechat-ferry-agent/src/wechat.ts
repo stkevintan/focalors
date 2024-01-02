@@ -93,13 +93,13 @@ export class WechatFerry extends Wechat {
         Protocol.FriendInfo[]
     > {
         const friends = await this.bot.getFriendList();
-        return friends.map((f) => ({
-            user_id: f.wxid,
-            user_name: f.name,
-            user_displayname: f.name,
-            user_remark: f.remark,
-            // not supported
-            // "wx.avatar": "",
+        const contacts = await this.bot.enhanceContactsWithAvatars(friends);
+        return contacts.map((c) => ({
+            user_id: c.wxid,
+            user_name: c.name,
+            user_displayname: c.name,
+            user_remark: c.remark,
+            "wx.avatar": c.avatar,
             "wx.verify_flag": "1",
         }));
     }
@@ -108,10 +108,11 @@ export class WechatFerry extends Wechat {
         Protocol.GroupInfo[]
     > {
         const groups = await this.bot.getGroups();
-        return groups.map((g) => ({
+        const contacts = await this.bot.enhanceContactsWithAvatars(groups);
+        return contacts.map((g) => ({
             group_id: g.wxid,
             group_name: g.name,
-            // "wx.avatar": undefined,
+            "wx.avatar": g.avatar,
         }));
     }
 
@@ -120,6 +121,9 @@ export class WechatFerry extends Wechat {
     ): Promise<Protocol.ActionReturn<Protocol.GetGroupMemberInfoAction>> {
         const { user_id, group_id } = params;
         const user = await this.bot.getGroupMember(group_id, user_id);
+        const [avatar] = await this.bot.queryAvatar(
+            `wxid = "${user_id}"`
+        );
         return {
             user_id: user.wxid,
             user_name: user.name,
@@ -127,7 +131,7 @@ export class WechatFerry extends Wechat {
             "wx.wx_number": user_id,
             "wx.province": user?.province,
             "wx.city": user?.city,
-            "wx.avatar": "",
+            "wx.avatar": avatar?.avatar,
         };
     }
 

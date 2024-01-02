@@ -67,7 +67,7 @@ export class WcfClient {
     on(eventName: "message", callback: (data: WcfMessage) => void) {
         const listener = (message: RawMessage) => {
             callback(new WcfMessage(message));
-        }
+        };
         this.eventSub.on(eventName, listener);
         return () => this.eventSub.off(eventName, listener);
     }
@@ -122,6 +122,23 @@ export class WcfClient {
 
     async getContacts(): Promise<Contact[]> {
         return await this.request("/contacts").then((d) => d.contacts);
+    }
+
+    async enhanceContactsWithAvatars(
+        contacts: Contact[]
+    ): Promise<ContactWithAvatar[]> {
+        const wxids = contacts.map((c) => `"${c.wxid}"`).join(",");
+        const heads = await this.queryAvatar(`wxid IN (${wxids})`);
+        const headMap = Object.fromEntries(
+            heads.map((h) => [h.wxid, h] as const)
+        );
+        return contacts.map<ContactWithAvatar>((c) => {
+            const head = headMap[c.wxid];
+            return {
+                ...c,
+                avatar: head?.avatar ?? "",
+            };
+        });
     }
 
     async getContact(wxid: string | ((c: Contact) => boolean)) {
@@ -213,6 +230,33 @@ export class WcfClient {
             body: JSON.stringify(body),
         });
     }
+
+    async querySQL<T>(db: string, sql: string): Promise<T> {
+        const body = {
+            db,
+            sql,
+        };
+        const ret = await this.request<{ bs64: T }>("/sql", {
+            method: "POST",
+            body: JSON.stringify(body),
+        });
+        return ret.bs64;
+    }
+
+    async queryAvatar(condition = `wxid LIKE "wxid_%"`) {
+        const sql = `SELECT usrName as wxid, smallHeadImgUrl, bigHeadImgUrl FROM ContactHeadImgUrl WHERE ${condition};`;
+        const ret = await this.querySQL<
+            Array<{
+                wxid: string;
+                smallHeadImgUrl: string;
+                bigHeadImgUrl: string;
+            }>
+        >("MicroMsg.db", sql);
+        return ret.map((r) => ({
+            wxid: r.wxid,
+            avatar: r.bigHeadImgUrl || r.smallHeadImgUrl || "",
+        }));
+    }
 }
 
 export interface UserInfo {
@@ -233,6 +277,10 @@ export interface Contact {
     province: string;
     city: string;
     gender: string;
+}
+
+export interface ContactWithAvatar extends Contact {
+    avatar: string;
 }
 
 export interface WcfResponse<T = unknown> {
