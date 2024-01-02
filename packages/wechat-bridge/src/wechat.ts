@@ -200,7 +200,7 @@ export abstract class Wechat {
 export const WechatToken: InjectionToken<Wechat> = "wechat";
 
 function toFileBox(
-    file: Parameters<Protocol.UploadFileAction["handle"]>[0],
+    file: Parameters<Protocol.UploadFileAction["handler"]>[0],
     name?: string
 ) {
     switch (file.type) {
