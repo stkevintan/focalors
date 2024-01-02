@@ -111,6 +111,10 @@ export class WcfMessage {
         return this.message.type;
     }
 
+    get typeName() {
+        return MessageType[this.type] ?? this.type;
+    }
+
     get isSelf() {
         return this.message.is_self;
     }

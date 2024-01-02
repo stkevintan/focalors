@@ -117,10 +117,14 @@ export class YunzaiClient implements AsyncService {
         if (null === req || typeof req !== "object") {
             logger.warn("Unexpected message received", req);
         }
-        logger.debug("Received client message:", req);
+        logger.debug("Received client message:", dontOutputBase64(req));
         const set = this.eventSub[req.action];
         if (!set) {
-            logger.warn("No handle registered to event:", req.action, this.eventSub);
+            logger.warn(
+                "No handle registered to event:",
+                req.action,
+                this.eventSub
+            );
         } else {
             this.eventSub[req.action].forEach((handle) => handle(req));
         }
@@ -148,7 +152,6 @@ export class YunzaiClient implements AsyncService {
             params,
             echo,
         }: Protocol.ActionReq<Parameters<T["handle"]>[0]>) => {
-            logger.info("Exec handle:", actionType);
             try {
                 logger.debug(`Starting to execute handler of ${actionType}`);
                 const res = await handle(params as never);
@@ -226,4 +229,17 @@ async function waitFor<T = unknown>(
     const defer = new Defer<T[]>();
     host.once(event, (...args: T[]) => defer.resolve(args));
     return await defer.promise;
+}
+
+function dontOutputBase64(req: Protocol.ActionReq<unknown>) {
+    if (req.action === "upload_file") {
+        return {
+            ...req,
+            params: {
+                ...(<Protocol.UplaodFileParam>req.params),
+                data: "<base64>",
+            },
+        };
+    }
+    return req;
 }

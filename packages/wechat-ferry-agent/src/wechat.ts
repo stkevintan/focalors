@@ -43,13 +43,9 @@ export class WechatFerry extends Wechat {
         message: WcfMessage
     ): void {
         logger.debug(
-            "Received Message:",
-            message.sender,
-            "group:",
-            message.isGroup,
-            "type:",
-            message.type,
-            message.text
+            `Received Message: [From ${message.sender}]`,
+            `[Type:${message.typeName}]`,
+            message.isGroup ? `[Group]` : "",
         );
         if (
             message.type !== MessageType.Text &&
@@ -67,10 +63,12 @@ export class WechatFerry extends Wechat {
             return;
         }
 
-        const text = message.text;
+        const { text } = message;
         if (!/^\s*[#*]/.test(text)) {
-            logger.warn(`Message without prefix # or, skip...`);
+            logger.warn(`Message without prefix # or *, skip...`);
+            return;
         }
+        logger.info("Message to forward:", text);
 
         const segment: Protocol.MessageSegment[] = [
             {
@@ -121,9 +119,7 @@ export class WechatFerry extends Wechat {
     ): Promise<Protocol.ActionReturn<Protocol.GetGroupMemberInfoAction>> {
         const { user_id, group_id } = params;
         const user = await this.bot.getGroupMember(group_id, user_id);
-        const [avatar] = await this.bot.queryAvatar(
-            `wxid = "${user_id}"`
-        );
+        const [avatar] = await this.bot.queryAvatar(`wxid = "${user_id}"`);
         return {
             user_id: user.wxid,
             user_name: user.name,
