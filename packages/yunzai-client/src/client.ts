@@ -1,5 +1,8 @@
 import ws from "ws";
+import fs from "fs";
 import { EventEmitter } from "events";
+// eslint-disable-next-line @nx/enforce-module-boundaries
+import type { Wechat } from "@focalors/wechat-bridge";
 
 import { inject, injectable } from "tsyringe";
 import { randomInt, randomUUID } from "crypto";
@@ -8,11 +11,21 @@ import { AsyncService, Protocol } from "./types";
 import { Configuration } from "./config";
 import { Defer } from "./utils/defer";
 import { logger } from "./logger";
+import path from "path";
+import { FileBox } from "file-box";
+import { BotStatus } from "./types/comwechat";
+
+const interval = 30 * 60 * 1000;
 
 @injectable()
 export class YunzaiClient implements AsyncService {
     private client?: ws;
-    private eventSub = new EventEmitter({ captureRejections: true });
+    private eventSub = new EventEmitter();
+
+    private self: BotStatus["self"] = {
+        platform: "wechat",
+        user_id: "me",
+    };
 
     constructor(@inject(Configuration) private configuration: Configuration) {}
 
@@ -33,6 +46,9 @@ export class YunzaiClient implements AsyncService {
 
     async start(): Promise<void> {
         await this.connect();
+        setInterval(() => {
+            void this.removeImagesHoursAgo();
+        }, interval);
         logger.info("yunzai client started");
     }
 
@@ -76,7 +92,8 @@ export class YunzaiClient implements AsyncService {
         });
     }
 
-    async sendReadySignal(uid: string) {
+    private async sendReadySignal(uid: string) {
+        this.self.user_id = uid;
         await this.ping();
         await this.rawSend({
             id: randomUUID(),
@@ -155,22 +172,123 @@ export class YunzaiClient implements AsyncService {
                 );
             } catch (err) {
                 logger.debug(
-                    `Event handler of ${actionType} failed to execute`,
+                    `Event handler of ${actionType} failed to execute`
                 );
-                logger.error(err);
+                // use logger will cause a problem. not sure why.
+                console.error(err);
             }
         };
     }
 
-    async send(
+    protected async removeImagesHoursAgo() {
+        const dir = this.configuration.imageCacheDirectory;
+        try {
+            const images = await fs.promises.readdir(dir);
+            logger.debug("starting to remove outdated images");
+            const ret = await Promise.allSettled(
+                images.map(async (image) => {
+                    const extname = path.extname(image);
+                    if (extname === ".jpg") {
+                        const fullpath = path.resolve(dir, image);
+                        const stat = await fs.promises.stat(fullpath);
+                        if (Date.now() - stat.atimeMs >= interval) {
+                            await fs.promises.unlink(fullpath);
+                        }
+                    }
+                })
+            );
+            logger.debug(
+                `removed ${
+                    ret.filter((r) => r.status === "fulfilled").length
+                } outdated images`
+            );
+        } catch (err) {
+            logger.debug("clear outdated images failed:", err);
+        }
+    }
+
+    bridge(wechat: Wechat) {
+        this.on("get_version", () => ({
+            impl: "ComWechat",
+            version: "0.0.8",
+            onebot_version: "0.0.8",
+        }));
+
+        this.on("get_self_info", () => ({
+            user_id: wechat.self.id,
+            user_name: wechat.self.name,
+            user_displayname: "",
+        }));
+
+        this.on("get_status", () => ({
+            good: true,
+            bots: [
+                {
+                    online: true,
+                    self: this.self,
+                },
+            ],
+        }));
+        this.on("get_friend_list", wechat.getFriendList.bind(wechat));
+        this.on("get_group_list", wechat.getGroupList.bind(wechat));
+        this.on(
+            "get_group_member_info",
+            wechat.getGroupMemberInfo.bind(wechat)
+        );
+
+        this.on("send_message", async (params) => {
+            try {
+                switch (params.detail_type) {
+                    case "private":
+                        return await wechat.send(
+                            params.message,
+                            params.user_id
+                        );
+                    case "group":
+                        return await wechat.send(
+                            params.message,
+                            params.group_id
+                        );
+                    default:
+                        logger.error(
+                            "Unrecognized detail type:",
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            (params as any).detail_type
+                        );
+                        return false;
+                }
+            } catch (err) {
+                logger.error("Error while sending message:", err);
+            }
+            return false;
+        });
+
+        this.on("upload_file", async (file) => {
+            const dir = this.configuration.imageCacheDirectory;
+            const name = randomUUID();
+            const imagePath = path.resolve(dir, `${name}.jpg`);
+            const filebox = toFileBox(file, `${name}.jpg`);
+            if (filebox) {
+                logger.info("successfully write image cache into:", imagePath);
+                await filebox.toFile(imagePath, true);
+            }
+
+            return {
+                file_id: name,
+            };
+        });
+        this.sendReadySignal(wechat.self.id);
+    }
+
+    async forward(
         message: Protocol.MessageSegment[],
-        from: string,
-        to: string | { userId: string; groupId: string }
+        from: string | { userId: string; groupId: string }
     ) {
         // try to reconnect if client readystate is close or closing
         if (!this.client || this.client.readyState > ws.OPEN) {
             await this.connect();
         }
+
         await this.rawSend({
             type: "message",
             id: randomUUID(),
@@ -182,17 +300,14 @@ export class YunzaiClient implements AsyncService {
             ),
             message,
             alt_message: message.map(alt).join(" "),
-            self: {
-                platform: "wechat",
-                user_id: from,
-            },
-            ...(typeof to === "object"
+            self: this.self,
+            ...(typeof from === "object"
                 ? {
                       detail_type: "group",
-                      group_id: to.groupId,
-                      user_id: to.userId,
+                      group_id: from.groupId,
+                      user_id: from.userId,
                   }
-                : { detail_type: "private", user_id: to }),
+                : { detail_type: "private", user_id: from }),
         });
     }
 }
@@ -234,4 +349,18 @@ function dontOutputBase64(req: Protocol.ActionReq<unknown>) {
         };
     }
     return req;
+}
+
+function toFileBox(
+    file: Parameters<Protocol.UploadFileAction["handler"]>[0],
+    name?: string
+) {
+    switch (file.type) {
+        case "data":
+            return FileBox.fromBase64(file.data, name);
+        case "path":
+            return FileBox.fromFile(file.path, name);
+        case "url":
+            return FileBox.fromUrl(file.url, { headers: file.headers, name });
+    }
 }

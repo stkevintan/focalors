@@ -151,7 +151,7 @@ export class WcfMessage {
     get text() {
         return typeof this.content === "string"
             ? this.content
-            : this.content["msg"]["appmsg"]?.["title"];
+            : this.content["msg"]["appmsg"]?.["title"] as string | undefined;
     }
 
     get referContent() {

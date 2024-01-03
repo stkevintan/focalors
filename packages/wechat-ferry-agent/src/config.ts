@@ -1,5 +1,5 @@
+import { Configuration } from "@focalors/yunzai-client";
 import { singleton } from "tsyringe";
-import { Configuration } from "@focalors/wechat-bridge";
 
 @singleton()
 export class WcfConfiguration extends Configuration {

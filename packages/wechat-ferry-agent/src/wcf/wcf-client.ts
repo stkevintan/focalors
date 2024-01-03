@@ -14,7 +14,7 @@ export class WcfClient {
     constructor(
         @inject(WcfConfiguration) private configuration: WcfConfiguration
     ) {
-        this.eventSub = new EventEmitter({ captureRejections: true });
+        this.eventSub = new EventEmitter();
         this.eventSub.setMaxListeners(0);
         this.server = http.createServer((req, res) => {
             // no need to check path for now
@@ -96,7 +96,12 @@ export class WcfClient {
             });
             const json = await res.json();
             if (json.status !== 0) {
-                logger.warn(`Wcf API failed [${i + 1}/5]: ${url} ${options?.method ?? 'GET'}`, json);
+                logger.warn(
+                    `Wcf API failed [${i + 1}/5]: ${url} ${
+                        options?.method ?? "GET"
+                    }`,
+                    json
+                );
                 await new Promise((res) => setTimeout(res, 1 * 1000));
                 continue;
             }
@@ -159,10 +164,17 @@ export class WcfClient {
     }
 
     async getGroupMembers(roomId: string) {
-        const res = await this.request<{ members: Record<string, string> }>(
-            `/chatroom-member?roomid=${roomId}`
-        );
-        return res.members;
+        for (let i = 0; i < 5; i++) {
+            const res = await this.request<{ members: Record<string, string> }>(
+                `/chatroom-member?roomid=${roomId}`
+            );
+            if (Object.keys(res.members ?? {}).length) {
+                return res.members;
+            }
+            await new Promise<void>((res) => setTimeout(res, 1000));
+            logger.warn(`Empty chatroom member got for ${roomId}, retry...`);
+        }
+        return {};
     }
 
     async getGroupMember(roomId: string, userId: string) {

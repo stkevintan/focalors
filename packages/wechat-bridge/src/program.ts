@@ -23,6 +23,7 @@ export class Program implements AsyncService {
 
         // bridge wechat and client
         this.wechat.bridge(this.client);
+        this.client.bridge(this.wechat);
         logger.info("program started");
     }
 

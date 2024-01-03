@@ -3,13 +3,13 @@ import { singleton } from "tsyringe";
 import { Contact, Message, ScanStatus, types, WechatyBuilder } from "wechaty";
 import qrcodeTerminal from "qrcode-terminal";
 import { logger } from "./logger";
-import { Protocol, YunzaiClient } from "@focalors/yunzai-client";
+import type { Protocol, YunzaiClient } from "@focalors/yunzai-client";
 import { Wechat } from "@focalors/wechat-bridge";
 import assert from "assert";
 
 @singleton()
 export class Wechaty extends Wechat {
-    protected override bot = WechatyBuilder.build({ name: "focalors-bot" });
+    protected bot = WechatyBuilder.build({ name: "focalors-bot" });
     override get self() {
         return {
             id: this.bot.currentUser.id,
@@ -31,8 +31,7 @@ export class Wechaty extends Wechat {
         await this.bot.logout();
     }
 
-    protected override bridgeForward(client: YunzaiClient): void {
-        // subscribe bot to client
+    override bridge(client: YunzaiClient): void {
         this.bot.on("message", (message) => {
             const talker = message.talker();
             const room = message.room();
@@ -70,19 +69,17 @@ export class Wechaty extends Wechat {
                 },
             ];
             if (room) {
-                void client.send(segment, this.self.id, {
+                void client.forward(segment, {
                     groupId: room.id,
                     userId: talker.id,
                 });
             } else {
-                void client.send(segment, this.self.id, talker.id);
+                void client.forward(segment, talker.id);
             }
         });
     }
 
-    protected override async bridgeGetFriendList(): Promise<
-        Protocol.FriendInfo[]
-    > {
+    override async getFriendList(): Promise<Protocol.FriendInfo[]> {
         const friends = await this.bot.Contact.findAll();
         return await Promise.all(
             friends.map(async (friend) => ({
@@ -96,9 +93,7 @@ export class Wechaty extends Wechat {
         );
     }
 
-    protected override async bridgeGetGroupList(): Promise<
-        Protocol.GroupInfo[]
-    > {
+    override async getGroupList(): Promise<Protocol.GroupInfo[]> {
         const groups = await this.bot.Room.findAll();
         return await Promise.all(
             groups.map(async (group) => ({
@@ -109,7 +104,7 @@ export class Wechaty extends Wechat {
         );
     }
 
-    protected override async bridgeGetGroupMemberInfo(
+    override async getGroupMemberInfo(
         params: Protocol.ActionParam<Protocol.GetGroupMemberInfoAction>
     ): Promise<Protocol.ActionReturn<Protocol.GetGroupMemberInfoAction>> {
         const { user_id, group_id } = params;
@@ -126,45 +121,14 @@ export class Wechaty extends Wechat {
         };
     }
 
-    protected override async sendMessageToUser(
+    override async send(
         messages: Protocol.MessageSegment[],
-        userId: string
+        contactId: string
     ) {
-        const user = await this.bot.Contact.find({ id: userId });
-        if (!user) {
-            return false;
-        }
-        let repliedMessage: Message | undefined = undefined;
-        for (const message of messages) {
-            switch (message.type) {
-                case "reply":
-                    repliedMessage = await this.bot.Message.find({
-                        id: message.data.message_id,
-                        fromId: message.data.user_id,
-                    });
-                    break;
-                // merge adjacent text message?
-                case "text":
-                    await (repliedMessage ?? user).say(message.data.text);
-                    repliedMessage = undefined;
-                    break;
-                case "image":
-                case "wx.emoji":
-                    // unable to reply with an image in wechat
-                    await user.say(this.loadFileFromId(message.data.file_id));
-                    break;
-            }
-        }
-        return true;
-    }
-
-    protected override async sendMessageToGroup(
-        messages: Protocol.MessageSegment[],
-        groupId: string
-        // userId?: string
-    ) {
-        const group = await this.bot.Room.find({ id: groupId });
-        if (!group) {
+        const group = await this.bot.Room.find({ id: contactId });
+        const contact =
+            group || (await this.bot.Contact.find({ id: contactId }));
+        if (!contact) {
             return false;
         }
         const mentions = (
@@ -185,12 +149,12 @@ export class Wechaty extends Wechat {
                     repliedMessage = await this.bot.Message.find({
                         id: message.data.message_id,
                         fromId: message.data.user_id,
-                        roomId: group.id,
+                        roomId: group?.id,
                     });
                     break;
                 // merge adjacent text message?
                 case "text":
-                    await (repliedMessage ?? group).say(
+                    await (repliedMessage ?? contact).say(
                         message.data.text,
                         ...mentions
                     );
@@ -199,7 +163,9 @@ export class Wechaty extends Wechat {
                 case "image":
                 case "wx.emoji":
                     // unable to reply with an image in wechat
-                    await group.say(this.loadFileFromId(message.data.file_id));
+                    await contact.say(
+                        this.loadFileFromId(message.data.file_id)
+                    );
                     break;
             }
         }

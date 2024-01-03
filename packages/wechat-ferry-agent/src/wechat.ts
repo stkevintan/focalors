@@ -1,7 +1,7 @@
 import { inject, singleton } from "tsyringe";
 import { Wechat } from "@focalors/wechat-bridge";
 import { Protocol, YunzaiClient } from "@focalors/yunzai-client";
-import { MessageType, UserInfo, WcfClient, WcfMessage } from "./wcf";
+import { MessageType, UserInfo, WcfClient } from "./wcf";
 import { logger } from "./logger";
 import { WcfConfiguration } from "./config";
 import assert from "assert";
@@ -38,58 +38,56 @@ export class WechatFerry extends Wechat {
     override async stop(): Promise<void> {
         this.bot.stop();
     }
-    protected override bridgeForward(
-        client: YunzaiClient,
-        message: WcfMessage
-    ): void {
-        logger.debug(
-            `Received Message: [From ${message.sender}]`,
-            `[Type:${message.typeName}]`,
-            message.isGroup ? `[Group]` : "",
-        );
-        if (
-            message.type !== MessageType.Text &&
-            message.type !== MessageType.Reply
-        ) {
-            logger.warn(
-                `Unsupported message type: ${MessageType[message.type]} (${
-                    message.type
-                })`
+
+    override bridge(client: YunzaiClient): void {
+        this.bot.on("message", (message) => {
+            logger.debug(
+                `Received Message: [From ${message.sender}]`,
+                `[Type:${message.typeName}]`,
+                message.isGroup ? `[Group]` : ""
             );
-            return;
-        }
-        if (message.isSelf) {
-            logger.warn(`Self message, skip...`);
-            return;
-        }
+            if (
+                message.type !== MessageType.Text &&
+                message.type !== MessageType.Reply
+            ) {
+                logger.warn(
+                    `Unsupported message type: ${MessageType[message.type]} (${
+                        message.type
+                    })`
+                );
+                return;
+            }
+            if (message.isSelf) {
+                logger.warn(`Self message, skip...`);
+                return;
+            }
 
-        const { text } = message;
-        if (!/(^\s*[#*])|_MHYUUID/.test(text)) {
-            logger.warn(`Message without prefix # or *, skip...`);
-            return;
-        }
-        logger.info("Message to forward:", text);
+            const { text = "" } = message;
+            if (!/(^\s*[#*])|_MHYUUID/.test(text)) {
+                logger.warn(`Message without prefix # or *, skip...`);
+                return;
+            }
+            logger.info("Message to forward:", text);
 
-        const segment: Protocol.MessageSegment[] = [
-            {
-                type: "text",
-                data: { text },
-            },
-        ];
+            const segment: Protocol.MessageSegment[] = [
+                {
+                    type: "text",
+                    data: { text },
+                },
+            ];
 
-        if (message.isGroup) {
-            void client.send(segment, this.currentUser!.wxid, {
-                groupId: message.roomId,
-                userId: message.sender,
-            });
-        } else {
-            void client.send(segment, this.currentUser!.wxid, message.sender);
-        }
+            if (message.isGroup) {
+                void client.forward(segment, {
+                    groupId: message.roomId,
+                    userId: message.sender,
+                });
+            } else {
+                void client.forward(segment, message.sender);
+            }
+        });
     }
 
-    protected override async bridgeGetFriendList(): Promise<
-        Protocol.FriendInfo[]
-    > {
+    override async getFriendList(): Promise<Protocol.FriendInfo[]> {
         const friends = await this.bot.getFriendList();
         const contacts = await this.bot.enhanceContactsWithAvatars(friends);
         return contacts.map((c) => ({
@@ -102,9 +100,7 @@ export class WechatFerry extends Wechat {
         }));
     }
 
-    protected override async bridgeGetGroupList(): Promise<
-        Protocol.GroupInfo[]
-    > {
+    override async getGroupList(): Promise<Protocol.GroupInfo[]> {
         const groups = await this.bot.getGroups();
         const contacts = await this.bot.enhanceContactsWithAvatars(groups);
         return contacts.map((g) => ({
@@ -114,7 +110,7 @@ export class WechatFerry extends Wechat {
         }));
     }
 
-    protected override async bridgeGetGroupMemberInfo(
+    override async getGroupMemberInfo(
         params: Protocol.ActionParam<Protocol.GetGroupMemberInfoAction>
     ): Promise<Protocol.ActionReturn<Protocol.GetGroupMemberInfoAction>> {
         const { user_id, group_id } = params;
@@ -131,52 +127,29 @@ export class WechatFerry extends Wechat {
         };
     }
 
-    protected async sendMessageToUser(
+    async send(
         messages: Protocol.MessageSegment[],
-        userId: string
+        to: string | { groupId: string; userId?: string }
     ) {
-        for (const message of messages) {
-            switch (message.type) {
-                case "reply":
-                    // repliedMessage = await this.bot.Message.find({
-                    //     id: message.data.message_id,
-                    //     fromId: message.data.user_id,
-                    // });
-                    break;
-                // merge adjacent text message?
-                case "text":
-                    await this.bot.sendText(message.data.text, userId);
-                    break;
-                case "image":
-                case "wx.emoji":
-                    // unable to reply with an image in wechat
-                    await this.bot.sendImage(
-                        this.loadFileFromId(message.data.file_id),
-                        userId
-                    );
-                    break;
-            }
-        }
-        return true;
-    }
+        const groupId = typeof to === "string" ? undefined : to.groupId;
+        const userId = typeof to === "string" ? to : to.userId;
 
-    protected async sendMessageToGroup(
-        messages: Protocol.MessageSegment[],
-        groupId: string
-        // userId?: string
-    ) {
-        const mentions = await Promise.all(
-            messages
-                .filter(
-                    (m): m is Protocol.MentionMessageSegment =>
-                        m.type === "mention"
-                )
-                .map((m) => m.data.user_id)
-        );
+        const mentions = groupId
+            ? await Promise.all(
+                  messages
+                      .filter(
+                          (m): m is Protocol.MentionMessageSegment =>
+                              m.type === "mention"
+                      )
+                      .map((m) => m.data.user_id)
+              )
+            : [];
         for (const message of messages) {
             switch (message.type) {
                 case "reply":
-                    mentions.push(message.data.user_id);
+                    if (groupId) {
+                        mentions.push(message.data.user_id);
+                    }
                     // repliedMessage = await this.bot.Message.find({
                     //     id: message.data.message_id,
                     //     fromId: message.data.user_id,
@@ -187,7 +160,7 @@ export class WechatFerry extends Wechat {
                 case "text":
                     await this.bot.sendText(
                         message.data.text,
-                        groupId,
+                        groupId ?? userId!,
                         mentions
                     );
                     // repliedMessage = undefined;
@@ -197,7 +170,7 @@ export class WechatFerry extends Wechat {
                     // unable to reply with an image in wechat
                     await this.bot.sendImage(
                         this.loadFileFromId(message.data.file_id),
-                        groupId
+                        groupId ?? userId!
                     );
                     break;
             }

@@ -108,9 +108,6 @@ importers:
       '@swc/helpers':
         specifier: ~0.5.2
         version: 0.5.3
-      file-box:
-        specifier: ^1.4.15
-        version: 1.4.15
 
   packages/wechat-ferry-agent:
     dependencies:
@@ -142,6 +139,9 @@ importers:
       '@swc/helpers':
         specifier: ~0.5.2
         version: 0.5.3
+      file-box:
+        specifier: ^1.4.15
+        version: 1.4.15
       ws:
         specifier: ^8.16.0
         version: 8.16.0
