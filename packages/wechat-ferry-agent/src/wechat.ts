@@ -64,7 +64,7 @@ export class WechatFerry extends Wechat {
         }
 
         const { text } = message;
-        if (!/^\s*[#*]/.test(text)) {
+        if (!/(^\s*[#*])|_MHYUUID/.test(text)) {
             logger.warn(`Message without prefix # or *, skip...`);
             return;
         }

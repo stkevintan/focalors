@@ -89,15 +89,20 @@ export class WcfClient {
             headers["content-type"] = "application/json";
         }
 
-        const res = await fetch(url, {
-            headers,
-            ...options,
-        });
-        const json = await res.json();
-        if (json.status !== 0) {
-            return Promise.reject(`Wcf API failed: ${json.message}`);
+        for (let i = 0; i < 5; i++) {
+            const res = await fetch(url, {
+                headers,
+                ...options,
+            });
+            const json = await res.json();
+            if (json.status !== 0) {
+                logger.warn(`Wcf API failed [${i + 1}/5]: ${url} ${options?.method ?? 'GET'}`, json);
+                await new Promise((res) => setTimeout(res, 1 * 1000));
+                continue;
+            }
+            return json.data;
         }
-        return json.data;
+        return Promise.reject(`WCF API failed with ${url}`);
     }
 
     async getCurrentUser() {

@@ -155,9 +155,9 @@ export class YunzaiClient implements AsyncService {
                 );
             } catch (err) {
                 logger.debug(
-                    `Event handler of ${actionType} failed to execute:`,
-                    err
+                    `Event handler of ${actionType} failed to execute`,
                 );
+                logger.error(err);
             }
         };
     }
