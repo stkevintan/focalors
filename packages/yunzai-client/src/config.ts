@@ -15,6 +15,7 @@ export class Configuration {
             return `${this.proto}://${this.host}:${this.port}${this.path}`;
         },
     };
+    readonly botId = "focarlors";
     constructor() {
         try {
             fs.mkdirSync(this.imageCacheDirectory, { recursive: true });

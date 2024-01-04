@@ -22,12 +22,14 @@ export class YunzaiClient implements AsyncService {
     private client?: ws;
     private eventSub = new EventEmitter();
 
-    private self: BotStatus["self"] = {
-        platform: "wechat",
-        user_id: "me",
-    };
+    private self: BotStatus["self"];
 
-    constructor(@inject(Configuration) private configuration: Configuration) {}
+    constructor(@inject(Configuration) private configuration: Configuration) {
+        this.self = {
+            platform: "wechat",
+            user_id: this.configuration.botId,
+        };
+    }
 
     on<K extends Protocol.KnownActionType>(
         eventName: K,
@@ -63,6 +65,7 @@ export class YunzaiClient implements AsyncService {
         this.client.on("message", this.onClientMessage.bind(this));
         // wait for websocket opened
         await waitFor(this.client, "open");
+        await this.ping();
         return this.client;
     }
 
@@ -80,21 +83,13 @@ export class YunzaiClient implements AsyncService {
             time: Date.now(),
             detail_type: "connect",
             sub_type: "",
-            self: {
-                platform: "wechat",
-                user_id: "",
-            },
+            self: this.self,
             version: {
                 impl: "ComWechat",
                 version: "1.2.0",
                 onebot_version: "12",
             },
         });
-    }
-
-    private async sendReadySignal(uid: string) {
-        this.self.user_id = uid;
-        await this.ping();
         await this.rawSend({
             id: randomUUID(),
             type: "meta",
@@ -106,10 +101,7 @@ export class YunzaiClient implements AsyncService {
                 bots: [
                     {
                         online: true,
-                        self: {
-                            platform: "wechat",
-                            user_id: uid,
-                        },
+                        self: this.self,
                     },
                 ],
             },
@@ -277,7 +269,7 @@ export class YunzaiClient implements AsyncService {
                 file_id: name,
             };
         });
-        this.sendReadySignal(wechat.self.id);
+        // this.sendReadySignal(wechat.self.id);
     }
 
     async forward(

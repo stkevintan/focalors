@@ -62,10 +62,13 @@ export class WechatFerry extends Wechat {
                 return;
             }
 
-            const { text = "" } = message;
+            let { text = "" } = message;
             if (!/(^\s*[#*])|_MHYUUID/.test(text)) {
                 logger.warn(`Message without prefix # or *, skip...`);
                 return;
+            }
+            if (text.startsWith('#!')) {
+                text = text.substring(2);
             }
             logger.info("Message to forward:", text);
 

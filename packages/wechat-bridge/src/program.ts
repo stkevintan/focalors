@@ -17,13 +17,14 @@ export class Program implements AsyncService {
     }
 
     async start() {
+        // bridge wechat and client
+        this.wechat.bridge(this.client);
+        this.client.bridge(this.wechat);
+
         // wechat first
         await this.wechat.start();
         await this.client.start();
 
-        // bridge wechat and client
-        this.wechat.bridge(this.client);
-        this.client.bridge(this.wechat);
         logger.info("program started");
     }
 
