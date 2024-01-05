@@ -1,11 +1,8 @@
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
 import { singleton } from "tsyringe";
-import { logger } from "./logger";
+import { Configuration as BaseConfiguration } from "@focalors/onebot-protocol";
 
 @singleton()
-export class Configuration {
+export class Configuration extends BaseConfiguration {
     readonly ws = {
         port: 2536,
         path: "/ComWeChat",
@@ -15,15 +12,5 @@ export class Configuration {
             return `${this.proto}://${this.host}:${this.port}${this.path}`;
         },
     };
-    readonly botId = "focarlors";
-    constructor() {
-        try {
-            fs.mkdirSync(this.imageCacheDirectory, { recursive: true });
-        } catch (err) {
-            logger.debug(`image cache directory create failed`, err);
-        }
-    }
-    readonly imageCacheDirectory =
-        process.env["FOCALORS_IMAGE_CACHE_DIR"] ||
-        path.resolve(os.tmpdir(), "yunzai-cache");
+    override readonly botId = "yunzai";
 }

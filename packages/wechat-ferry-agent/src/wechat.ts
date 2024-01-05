@@ -1,24 +1,30 @@
 import { inject, singleton } from "tsyringe";
-import { Wechat } from "@focalors/wechat-bridge";
-import { Protocol, YunzaiClient } from "@focalors/yunzai-client";
-import { MessageType, UserInfo, WcfClient } from "./wcf";
+import { MessageType, UserInfo, WcfClient, WcfMessage } from "./wcf";
 import { logger } from "./logger";
 import { WcfConfiguration } from "./config";
 import assert from "assert";
+import {
+    FriendInfo,
+    GroupInfo,
+    MentionMessageSegment,
+    MessageSegment,
+    MessageTarget2,
+    OnebotWechat,
+} from "@focalors/onebot-protocol";
 
 @singleton()
-export class WechatFerry extends Wechat {
+export class WechatFerry extends OnebotWechat {
     constructor(
         @inject(WcfClient) protected bot: WcfClient,
         @inject(WcfConfiguration)
-        protected override configuration: WcfConfiguration
+        protected configuration: WcfConfiguration
     ) {
-        super(configuration);
+        super();
     }
 
     private currentUser?: UserInfo;
 
-    override get self() {
+    get self() {
         assert(
             this.currentUser,
             "Current user isnot available, has wechat ferry started?"
@@ -29,68 +35,65 @@ export class WechatFerry extends Wechat {
         };
     }
 
-    override async start(): Promise<void> {
+    async start(): Promise<void> {
         this.bot.start();
         this.currentUser = await this.bot.getCurrentUser();
         logger.info("wechat-ferry started");
     }
 
-    override async stop(): Promise<void> {
+    async stop(): Promise<void> {
         this.bot.stop();
     }
 
-    override bridge(client: YunzaiClient): void {
-        this.bot.on("message", (message) => {
+    override subscribe(
+        callback: (message: MessageSegment[], from: MessageTarget2) => void
+    ) {
+        return this.bot.on("message", (message: WcfMessage) => {
             logger.debug(
                 `Received Message: [From ${message.sender}]`,
                 `[Type:${message.typeName}]`,
                 message.isGroup ? `[Group]` : ""
             );
-            if (
-                message.type !== MessageType.Text &&
-                message.type !== MessageType.Reply
-            ) {
-                logger.warn(
-                    `Unsupported message type: ${MessageType[message.type]} (${
-                        message.type
-                    })`
-                );
-                return;
-            }
+            const msgSegments: MessageSegment[] = [];
             if (message.isSelf) {
                 logger.warn(`Self message, skip...`);
-                return;
+                return false;
             }
-
-            let { text = "" } = message;
-            if (!/(^\s*[#*])|_MHYUUID/.test(text)) {
-                logger.warn(`Message without prefix # or *, skip...`);
-                return;
-            }
-            if (text.startsWith('#!')) {
-                text = text.substring(2);
-            }
-            logger.info("Message to forward:", text);
-
-            const segment: Protocol.MessageSegment[] = [
-                {
-                    type: "text",
-                    data: { text },
-                },
-            ];
-
-            if (message.isGroup) {
-                void client.forward(segment, {
-                    groupId: message.roomId,
-                    userId: message.sender,
+            
+            if (message.isAt) {
+                msgSegments.push({
+                    type: "mention",
+                    data: { user_id: this.self.id },
                 });
-            } else {
-                void client.forward(segment, message.sender);
             }
+
+            switch (message.type) {
+                case MessageType.Reply:
+                // msgSegments.push({
+                //     type: 'reply',
+                //     data: {
+                //         user_id:
+                //     }
+                // })
+                // eslint-disable-next-line no-fallthrough
+                case MessageType.Text:
+                    msgSegments.push({
+                        type: "text",
+                        data: { text: message.text ?? "" },
+                    });
+                    break;
+            }
+
+            callback(
+                msgSegments,
+                message.isGroup
+                    ? { groupId: message.roomId, userId: message.sender }
+                    : message.sender
+            );
         });
     }
 
-    override async getFriendList(): Promise<Protocol.FriendInfo[]> {
+    async getFriends(): Promise<FriendInfo[]> {
         const friends = await this.bot.getFriendList();
         const contacts = await this.bot.enhanceContactsWithAvatars(friends);
         return contacts.map((c) => ({
@@ -99,11 +102,10 @@ export class WechatFerry extends Wechat {
             user_displayname: c.name,
             user_remark: c.remark,
             "wx.avatar": c.avatar,
-            "wx.verify_flag": "1",
         }));
     }
 
-    override async getGroupList(): Promise<Protocol.GroupInfo[]> {
+    async getGroups(): Promise<GroupInfo[]> {
         const groups = await this.bot.getGroups();
         const contacts = await this.bot.enhanceContactsWithAvatars(groups);
         return contacts.map((g) => ({
@@ -113,35 +115,39 @@ export class WechatFerry extends Wechat {
         }));
     }
 
-    override async getGroupMemberInfo(
-        params: Protocol.ActionParam<Protocol.GetGroupMemberInfoAction>
-    ): Promise<Protocol.ActionReturn<Protocol.GetGroupMemberInfoAction>> {
-        const { user_id, group_id } = params;
-        const user = await this.bot.getGroupMember(group_id, user_id);
-        const [avatar] = await this.bot.queryAvatar(`wxid = "${user_id}"`);
+    async getFriend(userId: string, groupId?: string): Promise<FriendInfo> {
+        const user = groupId
+            ? (await this.bot.getContact(userId)) ??
+              (await this.bot.getGroupMember(groupId, userId))
+            : await this.bot.getContact(userId);
+        assert(
+            user,
+            `Cannot find contact: ${userId} ${
+                groupId ? `group: ${groupId}` : ""
+            }`
+        );
+        const [avatar] = await this.bot.queryAvatar(`wxid = "${userId}"`);
         return {
             user_id: user.wxid,
             user_name: user.name,
             user_displayname: "",
-            "wx.wx_number": user_id,
-            "wx.province": user?.province,
-            "wx.city": user?.city,
+            user_remark: user.remark,
             "wx.avatar": avatar?.avatar,
         };
     }
 
     async send(
-        messages: Protocol.MessageSegment[],
+        messages: MessageSegment[],
         to: string | { groupId: string; userId?: string }
     ) {
-        const groupId = typeof to === "string" ? undefined : to.groupId;
-        const userId = typeof to === "string" ? to : to.userId;
+        const { groupId, userId } =
+            typeof to === "string" ? { userId: to, groupId: undefined } : to;
 
         const mentions = groupId
             ? await Promise.all(
                   messages
                       .filter(
-                          (m): m is Protocol.MentionMessageSegment =>
+                          (m): m is MentionMessageSegment =>
                               m.type === "mention"
                       )
                       .map((m) => m.data.user_id)
@@ -172,7 +178,8 @@ export class WechatFerry extends Wechat {
                 case "wx.emoji":
                     // unable to reply with an image in wechat
                     await this.bot.sendImage(
-                        this.loadFileFromId(message.data.file_id),
+                        // todo
+                        message.data.file_id,
                         groupId ?? userId!
                     );
                     break;

@@ -1,56 +1,89 @@
 import ws from "ws";
-import fs from "fs";
 import { EventEmitter } from "events";
-// eslint-disable-next-line @nx/enforce-module-boundaries
-import type { Wechat } from "@focalors/wechat-bridge";
-
 import { inject, injectable } from "tsyringe";
 import { randomInt, randomUUID } from "crypto";
 
-import { AsyncService, Protocol } from "./types";
+import {
+    OnebotClient,
+    Event,
+    ActionRes,
+    Action,
+    KnownAction,
+    ActionReq,
+    KnownActionMap,
+    PromiseOrNot,
+    MessageSegment,
+    UplaodFileParam,
+    OnebotWechat,
+    TextMessageSegment,
+    toFileBox,
+    OnebotWechatToken,
+    MessageTarget2,
+    SendMessageAction,
+} from "@focalors/onebot-protocol";
 import { Configuration } from "./config";
 import { Defer } from "./utils/defer";
 import { logger } from "./logger";
 import path from "path";
-import { FileBox } from "file-box";
-import { BotStatus } from "./types/comwechat";
-
-const interval = 30 * 60 * 1000;
 
 @injectable()
-export class YunzaiClient implements AsyncService {
+export class YunzaiClient extends OnebotClient {
     private client?: ws;
+    constructor(
+        @inject(Configuration) protected configuration: Configuration,
+        @inject(OnebotWechatToken) protected wechat: OnebotWechat
+    ) {
+        super(configuration);
+        this.eventSub.setMaxListeners(0);
+    }
     private eventSub = new EventEmitter();
 
-    private self: BotStatus["self"];
+    private actionHandlers: {
+        [K in keyof KnownActionMap]?: (
+            params: KnownActionMap[K]["req"]
+        ) => PromiseOrNot<KnownActionMap[K]["res"]>;
+    } = {
+        get_version: () => ({
+            impl: "ComWechat",
+            version: "0.0.8",
+            onebot_version: "12",
+        }),
+        get_status: () => ({
+            good: true,
+            bots: [{ online: true, self: this.self }],
+        }),
+        upload_file: async (file) => {
+            const name = randomUUID();
+            logger.info("upload_file ->", file.name);
+            const filename = file.name ?? `${name}.jpg`;
+            const imagePath = path.resolve(this.cacheDir, filename);
+            const filebox = toFileBox(file, filename);
+            if (filebox) {
+                await filebox.toFile(imagePath, true);
+            }
+            return {
+                file_id: imagePath,
+            };
+        },
+        get_self_info: () => ({
+            user_id: this.wechat.self.id,
+            user_name: this.wechat.self.name,
+            user_displayname: "",
+        }),
 
-    constructor(@inject(Configuration) private configuration: Configuration) {
-        this.self = {
-            platform: "wechat",
-            user_id: this.configuration.botId,
-        };
-    }
+        get_friend_list: () => this.wechat.getFriends(),
 
-    on<K extends Protocol.KnownActionType>(
-        eventName: K,
-        handler: Protocol.KnownActionMap[K]["handler"]
-    ) {
-        const handler2 = this.wrapHandler(eventName, handler);
-        this.eventSub.on(eventName, handler2);
-        return () => {
-            this.eventSub.off(eventName, handler2);
-        };
-    }
-
-    removeAllEvents<K extends Protocol.KnownActionType>(eventName?: K) {
-        this.eventSub.removeAllListeners(eventName);
-    }
+        get_group_list: () => this.wechat.getGroups(),
+        get_group_member_info: (params) =>
+            this.wechat.getFriend(params.user_id, params.group_id),
+        send_message: (params) => {
+            this.eventSub.emit("message", params);
+            return true;
+        },
+    };
 
     async start(): Promise<void> {
         await this.connect();
-        setInterval(() => {
-            void this.removeImagesHoursAgo();
-        }, interval);
         logger.info("yunzai client started");
     }
 
@@ -61,11 +94,10 @@ export class YunzaiClient implements AsyncService {
             return this.client;
         }
         this.client = new ws(this.configuration.ws.endpoint);
-        // bind message
         this.client.on("message", this.onClientMessage.bind(this));
         // wait for websocket opened
         await waitFor(this.client, "open");
-        await this.ping();
+        this.ping();
         return this.client;
     }
 
@@ -76,8 +108,8 @@ export class YunzaiClient implements AsyncService {
         this.client = undefined;
     }
 
-    private async ping() {
-        await this.rawSend({
+    private ping() {
+        this.rawSend({
             id: randomUUID(),
             type: "meta",
             time: Date.now(),
@@ -90,7 +122,7 @@ export class YunzaiClient implements AsyncService {
                 onebot_version: "12",
             },
         });
-        await this.rawSend({
+        this.rawSend({
             id: randomUUID(),
             type: "meta",
             time: Date.now(),
@@ -108,180 +140,88 @@ export class YunzaiClient implements AsyncService {
         });
     }
 
-    private onClientMessage(data: ws.RawData) {
+    private async onClientMessage(data: ws.RawData) {
         if (!data) {
             logger.warn("empty message received, stop processing");
             return;
         }
-        const req = JSON.parse(
-            data.toString("utf8")
-        ) as Protocol.ActionReq<unknown>;
+        const req = JSON.parse(data.toString("utf8")) as ActionReq<KnownAction>;
         if (null === req || typeof req !== "object") {
             logger.warn("Unexpected message received", req);
         }
         logger.debug("Received client message:", dontOutputBase64(req));
-        if (this.eventSub.listenerCount(req.action) === 0) {
-            logger.warn(
-                "No handler registered to event:",
-                req.action,
-                this.eventSub
-            );
-        } else {
-            this.eventSub.emit(req.action, req);
+        const handler = this.actionHandlers[req.action];
+
+        if (!handler) {
+            logger.warn("No handler registered to event:", req.action);
+            return;
         }
-    }
-
-    private async rawSend(
-        event: Protocol.Event | Protocol.ActionRes<unknown>
-    ): Promise<void> {
-        if (this.client) {
-            const defer = new Defer<void>();
-            this.client.send(JSON.stringify(event), (err: unknown) =>
-                err ? defer.reject(err) : defer.resolve()
-            );
-            await defer.promise;
-        } else {
-            logger.warn("Event failed to send due to client is not init");
-        }
-    }
-
-    private wrapHandler<T extends Protocol.KnownAction>(
-        actionType: T["name"],
-        handler: T["handler"]
-    ) {
-        return async ({
-            params,
-            echo,
-        }: Protocol.ActionReq<Parameters<T["handler"]>[0]>) => {
-            try {
-                logger.debug(`Starting to execute handler of ${actionType}`);
-                const res = await handler(params as never);
-                if (res) {
-                    await this.rawSend({ echo, data: res });
-                }
-                logger.debug(
-                    `Event handler of ${actionType} executed successfully`
-                );
-            } catch (err) {
-                logger.debug(
-                    `Event handler of ${actionType} failed to execute`
-                );
-                // use logger will cause a problem. not sure why.
-                console.error(err);
-            }
-        };
-    }
-
-    protected async removeImagesHoursAgo() {
-        const dir = this.configuration.imageCacheDirectory;
+        logger.debug(`Starting to execute handler of ${req.action}`);
         try {
-            const images = await fs.promises.readdir(dir);
-            logger.debug("starting to remove outdated images");
-            const ret = await Promise.allSettled(
-                images.map(async (image) => {
-                    const extname = path.extname(image);
-                    if (extname === ".jpg") {
-                        const fullpath = path.resolve(dir, image);
-                        const stat = await fs.promises.stat(fullpath);
-                        if (Date.now() - stat.atimeMs >= interval) {
-                            await fs.promises.unlink(fullpath);
-                        }
-                    }
-                })
-            );
+            const res = await handler(req.params as never);
+            if (res) {
+                this.rawSend({ echo: req.echo, data: res });
+            }
             logger.debug(
-                `removed ${
-                    ret.filter((r) => r.status === "fulfilled").length
-                } outdated images`
+                `Event handler of ${req.action} executed successfully`
             );
         } catch (err) {
-            logger.debug("clear outdated images failed:", err);
+            logger.debug(`Event handler of ${req.action} failed to execute`);
+            // use logger will cause a problem. not sure why.
+            console.error(err);
         }
     }
 
-    bridge(wechat: Wechat) {
-        this.on("get_version", () => ({
-            impl: "ComWechat",
-            version: "0.0.8",
-            onebot_version: "0.0.8",
-        }));
-
-        this.on("get_self_info", () => ({
-            user_id: wechat.self.id,
-            user_name: wechat.self.name,
-            user_displayname: "",
-        }));
-
-        this.on("get_status", () => ({
-            good: true,
-            bots: [
-                {
-                    online: true,
-                    self: this.self,
-                },
-            ],
-        }));
-        this.on("get_friend_list", wechat.getFriendList.bind(wechat));
-        this.on("get_group_list", wechat.getGroupList.bind(wechat));
-        this.on(
-            "get_group_member_info",
-            wechat.getGroupMemberInfo.bind(wechat)
-        );
-
-        this.on("send_message", async (params) => {
-            try {
-                switch (params.detail_type) {
-                    case "private":
-                        return await wechat.send(
-                            params.message,
-                            params.user_id
-                        );
-                    case "group":
-                        return await wechat.send(
-                            params.message,
-                            params.group_id
-                        );
-                    default:
-                        logger.error(
-                            "Unrecognized detail type:",
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            (params as any).detail_type
-                        );
-                        return false;
-                }
-            } catch (err) {
-                logger.error("Error while sending message:", err);
+    private rawSend(event: Event | ActionRes<Action>): void {
+        if (!this.client) {
+            logger.error("Cleint: no connection available");
+            return;
+        }
+        this.client.send(JSON.stringify(event), (err: unknown) => {
+            if (err) {
+                logger.error("Client send error", err);
             }
-            return false;
         });
-
-        this.on("upload_file", async (file) => {
-            const dir = this.configuration.imageCacheDirectory;
-            const name = randomUUID();
-            const imagePath = path.resolve(dir, `${name}.jpg`);
-            const filebox = toFileBox(file, `${name}.jpg`);
-            if (filebox) {
-                logger.info("successfully write image cache into:", imagePath);
-                await filebox.toFile(imagePath, true);
-            }
-
-            return {
-                file_id: name,
-            };
-        });
-        // this.sendReadySignal(wechat.self.id);
     }
 
-    async forward(
-        message: Protocol.MessageSegment[],
+    override subscribe(
+        callback: (message: MessageSegment[], target: MessageTarget2) => void
+    ): void {
+        this.eventSub.on("message", (params: SendMessageAction["req"]) => {
+            return callback(
+                params.message,
+                params.detail_type === "group"
+                    ? { groupId: params.group_id, userId: params.user_id }
+                    : params.user_id
+            );
+        });
+    }
+
+    async receive(
+        message: MessageSegment[],
         from: string | { userId: string; groupId: string }
     ) {
         // try to reconnect if client readystate is close or closing
         if (!this.client || this.client.readyState > ws.OPEN) {
             await this.connect();
         }
+        const segment = message.find(
+            (m): m is TextMessageSegment => m.type === "text"
+        );
+        if (!segment) {
+            logger.warn(`No text message, skip...`);
+            return false;
+        }
 
-        await this.rawSend({
+        if (!/(^\s*[#*])|_MHYUUID/.test(segment.data.text)) {
+            logger.warn(`Message without prefix # or *, skip...`);
+            return false;
+        }
+        if (segment.data.text.startsWith("#!")) {
+            segment.data.text = segment.data.text.substring(2);
+        }
+
+        this.rawSend({
             type: "message",
             id: randomUUID(),
             time: Date.now(),
@@ -301,10 +241,11 @@ export class YunzaiClient implements AsyncService {
                   }
                 : { detail_type: "private", user_id: from }),
         });
+        return true;
     }
 }
 
-function alt(message: Protocol.MessageSegment) {
+function alt(message: MessageSegment) {
     switch (message.type) {
         case "text":
             return message.data.text;
@@ -330,29 +271,15 @@ async function waitFor<T = unknown>(
     return await defer.promise;
 }
 
-function dontOutputBase64(req: Protocol.ActionReq<unknown>) {
+function dontOutputBase64(req: ActionReq<Action>) {
     if (req.action === "upload_file") {
         return {
             ...req,
             params: {
-                ...(<Protocol.UplaodFileParam>req.params),
+                ...(<UplaodFileParam>req.params),
                 data: "<base64>",
             },
         };
     }
     return req;
-}
-
-function toFileBox(
-    file: Parameters<Protocol.UploadFileAction["handler"]>[0],
-    name?: string
-) {
-    switch (file.type) {
-        case "data":
-            return FileBox.fromBase64(file.data, name);
-        case "path":
-            return FileBox.fromFile(file.path, name);
-        case "url":
-            return FileBox.fromUrl(file.url, { headers: file.headers, name });
-    }
 }

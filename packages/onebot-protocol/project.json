@@ -1,0 +1,30 @@
+{
+    "name": "onebot-protocol",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "sourceRoot": "packages/onebot-protocol/src",
+    "projectType": "library",
+    "targets": {
+        "build": {
+            "executor": "@nx/js:swc",
+            "outputs": ["{options.outputPath}"],
+            "options": {
+                "outputPath": "dist/packages/onebot-protocol",
+                "main": "packages/onebot-protocol/src/index.ts",
+                "tsConfig": "packages/onebot-protocol/tsconfig.lib.json",
+                "assets": ["packages/onebot-protocol/*.md"]
+            }
+        },
+        "lint": {
+            "executor": "@nx/eslint:lint",
+            "outputs": ["{options.outputFile}"]
+        },
+        "test": {
+            "executor": "@nx/vite:test",
+            "outputs": ["{options.reportsDirectory}"],
+            "options": {
+                "reportsDirectory": "../../coverage/packages/onebot-protocol"
+            }
+        }
+    },
+    "tags": []
+}

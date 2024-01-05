@@ -1,35 +1,56 @@
 import { Constructor } from "type-fest";
-import { container, inject, injectable } from "tsyringe";
-import { AsyncService, YunzaiClient } from "@focalors/yunzai-client";
-import { Wechat, WechatToken } from "./wechat";
+import { container, inject, injectable, injectAll } from "tsyringe";
+import {
+    AsyncService,
+    OnebotClient,
+    OnebotClientToken,
+    OnebotWechat,
+    OnebotWechatToken,
+} from "@focalors/onebot-protocol";
+
 import { logger } from "./logger";
 
 @injectable()
 export class Program implements AsyncService {
     constructor(
-        @inject(YunzaiClient) private client: YunzaiClient,
-        @inject(WechatToken) private wechat: Wechat
+        @inject(OnebotWechatToken) private wechat: OnebotWechat,
+        @injectAll(OnebotClientToken) private clients: OnebotClient[]
     ) {}
 
-    static create(wechatImpl: Constructor<Wechat>) {
-        container.register(WechatToken, wechatImpl);
+    static create(
+        wechatImpl: Constructor<OnebotWechat>,
+        ...clientImpls: Constructor<OnebotClient>[]
+    ) {
+        container.register(OnebotWechatToken, wechatImpl);
+        clientImpls.map((client) =>
+            container.register(OnebotClientToken, client)
+        );
         return container.resolve(Program);
     }
 
     async start() {
-        // bridge wechat and client
-        this.wechat.bridge(this.client);
-        this.client.bridge(this.wechat);
+        this.clients.map((client) => {
+            this.wechat.subscribe((message, target) =>
+                client.receive(message, target)
+            );
+
+            client.subscribe((message, target) =>
+                this.wechat.send(message, target)
+            );
+        });
 
         // wechat first
         await this.wechat.start();
-        await this.client.start();
+        await Promise.all(this.clients.map((client) => client.start()));
 
         logger.info("program started");
     }
 
     async stop() {
         // swallow the error since we must ensure all the stop functions will be called.
-        await Promise.allSettled([this.client.stop(), this.wechat.stop()]);
+        await Promise.allSettled([
+            ...this.clients.map((client) => client.stop()),
+            this.wechat.stop(),
+        ]);
     }
 }

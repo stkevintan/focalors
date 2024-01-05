@@ -1,5 +1,4 @@
-import { PromiseOrNot } from "./common";
-import { UnionToIntersection, TupleToUnion } from "type-fest";
+import { TupleToUnion } from "type-fest";
 
 // event
 
@@ -56,7 +55,7 @@ export interface MetaStatusUpdateEvent {
     time: number;
     sub_type: "";
     detail_type: "status_update";
-    status: ReturnType<GetStatusAction["handler"]>;
+    status: GetStatusAction["res"];
 }
 
 export interface TextMessageSegment {
@@ -111,23 +110,24 @@ export type Event = MetaConnectEvent | MetaStatusUpdateEvent | MessageEvent;
 //     params: Param;
 // }
 
-export type ActionHandle<P, R> = (params: P) => PromiseOrNot<R>;
+export type ActionReq<T extends Action> = T extends Action<infer K, infer P>
+    ? {
+          action: K;
+          echo: string;
+          params: P;
+      }
+    : never;
 
-export interface ActionReq<P> {
-    action: string;
+export interface ActionRes<R extends Action> {
     echo: string;
-    params: P;
-}
-
-export interface ActionRes<R> {
-    echo: string;
-    data: R;
+    data: R["res"];
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Action<K extends string = string, P = any, R = unknown> = {
     name: K;
-    handler: ActionHandle<P, R>;
+    req: P;
+    res: R;
 };
 
 // export interface ActionRes<Data> {
@@ -166,8 +166,7 @@ export interface FriendInfo {
     user_id: string;
     user_name: string;
     user_displayname: string;
-    user_remark: string;
-    "wx.verify_flag": "0" | "1";
+    user_remark?: string;
     // extension property
     "wx.avatar"?: string;
 }
@@ -223,16 +222,7 @@ export interface UplaodFileParam {
 export type GetGroupMemberInfoAction = Action<
     "get_group_member_info",
     { group_id: string; user_id: string },
-    {
-        user_id: string;
-        user_name: string;
-        user_displayname: string;
-        "wx.avatar": string;
-        "wx.wx_number": string;
-        "wx.nation"?: string;
-        "wx.province"?: string;
-        "wx.city"?: string;
-    }
+    FriendInfo
 >;
 
 // https://justundertaker.github.io/ComWeChatBotClient/action/meta.html#%E8%8E%B7%E5%8F%96%E7%89%88%E6%9C%AC%E4%BF%A1%E6%81%AF
@@ -254,15 +244,12 @@ export type KnownActions = [
 ];
 
 export type KnownAction = TupleToUnion<KnownActions>;
-export type ActionType<T extends Action> = T extends Action<infer R>
-    ? R
-    : never;
-export type KnownActionType = ActionType<KnownAction>;
-export type ActionMap<T extends Action> = UnionToIntersection<
-    T extends Action<infer R> ? { [K in R]: T } : never
->;
-export type KnownActionMap = ActionMap<KnownAction>;
 
-export type ActionParam<T extends Action> = T extends Action<string, infer P, unknown> ? P : never;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type ActionReturn<T extends Action> = T extends Action<string, any, infer R> ? R : never;
+type UnionToMap<T extends Action> = {
+    [K in T["name"]]: T extends Action<K> ? T : never;
+};
+
+export type KnownActionMap = UnionToMap<KnownAction>;
+export type Test<T extends Action> = {
+    [K in T["name"]]: T extends Action<K, infer R> ? R : never;
+};

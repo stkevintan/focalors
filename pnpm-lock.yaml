@@ -91,6 +91,12 @@ importers:
         specifier: ~0.34.6
         version: 0.34.6(@vitest/ui@0.34.7)
 
+  packages/gpt-client:
+    dependencies:
+      '@swc/helpers':
+        specifier: ~0.5.2
+        version: 0.5.3
+
   packages/logger:
     dependencies:
       '@swc/helpers':
@@ -102,6 +108,15 @@ importers:
       tslog:
         specifier: ^4.8.2
         version: 4.8.2
+
+  packages/onebot-protocol:
+    dependencies:
+      '@swc/helpers':
+        specifier: ~0.5.2
+        version: 0.5.3
+      file-box:
+        specifier: ^1.4.15
+        version: 1.4.15
 
   packages/wechat-bridge:
     dependencies:

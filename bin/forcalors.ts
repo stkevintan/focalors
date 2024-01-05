@@ -1,9 +1,10 @@
-import 'reflect-metadata';
+import "reflect-metadata";
 import { createLogger } from "@focalors/logger";
 import { Program } from "@focalors/wechat-bridge";
 import { WechatFerry } from "@focalors/wechat-ferry-agent";
 import path from "path";
-import * as dotenv from 'dotenv';
+import * as dotenv from "dotenv";
+import { YunzaiClient } from "@focalors/yunzai-client";
 
 dotenv.config();
 
@@ -14,7 +15,7 @@ const logger = createLogger({
 
 async function main() {
     try {
-        const program = Program.create(WechatFerry);
+        const program = Program.create(WechatFerry, YunzaiClient);
         await program.start();
         process.on("SIGINT", async () => {
             logger.info("\nGracefully shutting down from SIGINT (Ctrl+C)");

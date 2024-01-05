@@ -137,6 +137,9 @@ export class WcfClient {
     async enhanceContactsWithAvatars(
         contacts: Contact[]
     ): Promise<ContactWithAvatar[]> {
+        if (!contacts.length) {
+            return [];
+        }
         const wxids = contacts.map((c) => `"${c.wxid}"`).join(",");
         const heads = await this.queryAvatar(`wxid IN (${wxids})`);
         const headMap = Object.fromEntries(

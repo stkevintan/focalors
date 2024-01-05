@@ -1,0 +1,30 @@
+{
+    "name": "gpt-client",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "sourceRoot": "packages/gpt-client/src",
+    "projectType": "library",
+    "targets": {
+        "build": {
+            "executor": "@nx/js:swc",
+            "outputs": ["{options.outputPath}"],
+            "options": {
+                "outputPath": "dist/packages/gpt-client",
+                "main": "packages/gpt-client/src/index.ts",
+                "tsConfig": "packages/gpt-client/tsconfig.lib.json",
+                "assets": ["packages/gpt-client/*.md"]
+            }
+        },
+        "lint": {
+            "executor": "@nx/eslint:lint",
+            "outputs": ["{options.outputFile}"]
+        },
+        "test": {
+            "executor": "@nx/vite:test",
+            "outputs": ["{options.reportsDirectory}"],
+            "options": {
+                "reportsDirectory": "../../coverage/packages/gpt-client"
+            }
+        }
+    },
+    "tags": []
+}
