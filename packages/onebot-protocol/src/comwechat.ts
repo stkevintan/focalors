@@ -94,12 +94,27 @@ export interface ReplyMessageSegment {
     };
 }
 
+export interface CardMessage {
+    name?: string;
+    account: string;
+    title: string;
+    digest?: string;
+    url: string;
+    thumburl: string;
+}
+/** extended */
+export interface CardMessageSegment {
+    type: "card";
+    data: CardMessage;
+}
+
 export type MessageSegment =
     | TextMessageSegment
     | MentionMessageSegment
     | ImageMessageSegment
     | ReplyMessageSegment
-    | WxEmojiMessageSegment;
+    | WxEmojiMessageSegment
+    | CardMessageSegment;
 
 export type Event = MetaConnectEvent | MetaStatusUpdateEvent | MessageEvent;
 

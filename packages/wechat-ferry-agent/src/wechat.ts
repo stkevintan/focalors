@@ -57,9 +57,8 @@ export class WechatFerry extends OnebotWechat {
             const msgSegments: MessageSegment[] = [];
             if (message.isSelf) {
                 logger.warn(`Self message, skip...`);
-                return false;
             }
-            
+
             if (message.isAt) {
                 msgSegments.push({
                     type: "mention",
@@ -182,6 +181,9 @@ export class WechatFerry extends OnebotWechat {
                         message.data.file_id,
                         groupId ?? userId!
                     );
+                    break;
+                case "card":
+                    await this.bot.sendCard(message.data, groupId ?? userId!);
                     break;
             }
         }

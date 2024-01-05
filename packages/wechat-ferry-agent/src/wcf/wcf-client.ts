@@ -1,3 +1,4 @@
+import { CardMessage } from "@focalors/onebot-protocol";
 import assert from "assert";
 import EventEmitter from "events";
 import http, { Server } from "http";
@@ -248,6 +249,16 @@ export class WcfClient {
         return await this.request<void>("/image", {
             method: "POST",
             body: JSON.stringify(body),
+        });
+    }
+
+    async sendCard(card: CardMessage, to: string) {
+        return await this.request<void>("/rich-text", {
+            method: "POST",
+            body: JSON.stringify({
+                ...card,
+                receiver: to,
+            }),
         });
     }
 

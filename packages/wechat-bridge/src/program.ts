@@ -1,5 +1,5 @@
 import { Constructor } from "type-fest";
-import { container, inject, injectable, injectAll } from "tsyringe";
+import { container, inject, injectable, injectAll, Lifecycle } from "tsyringe";
 import {
     AsyncService,
     OnebotClient,
@@ -21,7 +21,9 @@ export class Program implements AsyncService {
         wechatImpl: Constructor<OnebotWechat>,
         ...clientImpls: Constructor<OnebotClient>[]
     ) {
-        container.register(OnebotWechatToken, wechatImpl);
+        container.register(OnebotWechatToken, wechatImpl, {
+            lifecycle: Lifecycle.Singleton,
+        });
         clientImpls.map((client) =>
             container.register(OnebotClientToken, client)
         );
@@ -41,6 +43,7 @@ export class Program implements AsyncService {
 
         // wechat first
         await this.wechat.start();
+
         await Promise.all(this.clients.map((client) => client.start()));
 
         logger.info("program started");

@@ -20,6 +20,7 @@ import {
     OnebotWechatToken,
     MessageTarget2,
     SendMessageAction,
+    MessageTarget,
 } from "@focalors/onebot-protocol";
 import { Configuration } from "./config";
 import { Defer } from "./utils/defer";
@@ -77,7 +78,7 @@ export class YunzaiClient extends OnebotClient {
         get_group_member_info: (params) =>
             this.wechat.getFriend(params.user_id, params.group_id),
         send_message: (params) => {
-            this.eventSub.emit("message", params);
+            this.send(params);
             return true;
         },
     };
@@ -197,6 +198,10 @@ export class YunzaiClient extends OnebotClient {
         });
     }
 
+    private send(params: SendMessageAction["req"]) {
+        this.eventSub.emit("message", params);
+    }
+
     async receive(
         message: MessageSegment[],
         from: string | { userId: string; groupId: string }
@@ -217,6 +222,44 @@ export class YunzaiClient extends OnebotClient {
             logger.warn(`Message without prefix # or *, skip...`);
             return false;
         }
+        const target: MessageTarget =
+            typeof from === "object"
+                ? {
+                      detail_type: "group",
+                      group_id: from.groupId,
+                      user_id: from.userId,
+                  }
+                : { detail_type: "private", user_id: from };
+
+        if (/^#\s*随机深渊杯\s*$/.test(segment.data.text)) {
+            this.send({
+                message: [
+                    {
+                        type: "text",
+                        data: {
+                            text: "MS Genshin群第三届随机深渊杯活动时间：1月5日20:00 -1月7日23:59，详情请查看公众号：",
+                        },
+                    },
+                    {
+                        type: "card",
+                        data: {
+                            name: '',
+                            digest: '',
+                            title: "Random Abyss",
+                            account: "gh_cabafdd5cf81",
+                            thumburl: `http://mmbiz.qpic.cn/sz_mmbiz_png/nMeboN2UZ1ghzh1zzpN3xrYDUiaENePuH9JiaoBLVJhTfYkBh4Z9icBNVYfqS7ylaBEBhJX22nwLZ5yGL0dSDOFxQ/0?wx_fmt=png`,
+                            // eslint-disable-next-line no-useless-escape
+                            // url: `https://mp.weixin.qq.com/mp/getmasssendmsg?__biz=MzkyMjYyMzY1MA==#wechat_webview_type=1&wechat_redirect","title_key":"__mp_wording__brandinfo_history_massmsg"`
+                            url: `https://mp.weixin.qq.com/mp/getmasssendmsg?__biz=MzkyMjYyMzY1MA==#wechat_webview_type=1&wechat_redirect`
+                        }
+                    }
+
+                ],
+                ...target,
+            });
+            return true;
+        }
+
         if (segment.data.text.startsWith("#!")) {
             segment.data.text = segment.data.text.substring(2);
         }
@@ -233,13 +276,7 @@ export class YunzaiClient extends OnebotClient {
             message,
             alt_message: message.map(alt).join(" "),
             self: this.self,
-            ...(typeof from === "object"
-                ? {
-                      detail_type: "group",
-                      group_id: from.groupId,
-                      user_id: from.userId,
-                  }
-                : { detail_type: "private", user_id: from }),
+            ...target,
         });
         return true;
     }
