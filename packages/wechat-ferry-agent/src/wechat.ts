@@ -53,6 +53,7 @@ export class WechatFerry extends OnebotWechat {
                 `Received Message: ${message.id} [From ${message.sender}]`,
                 `[Type:${message.typeName}]`,
                 message.isGroup ? `[Group]` : "",
+                message.raw
             );
             const msgSegments: MessageSegment[] = [];
             if (message.isSelf) {
@@ -87,7 +88,9 @@ export class WechatFerry extends OnebotWechat {
                                         ?.chatusr,
                                 message_id:
                                     message.content.msg.appmsg?.refermsg?.svrid,
-                                message_content: message.content.msg?.appmsg?.refermsg?.content
+                                message_content:
+                                    message.content.msg?.appmsg?.refermsg
+                                        ?.content,
                             },
                         },
                         {

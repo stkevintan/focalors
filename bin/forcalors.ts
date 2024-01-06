@@ -1,13 +1,14 @@
 import "reflect-metadata";
+import * as dotenv from "dotenv";
+dotenv.config();
+
 import { createLogger } from "@focalors/logger";
 import { Program } from "@focalors/wechat-bridge";
 import { WechatFerry } from "@focalors/wechat-ferry-agent";
 import path from "path";
-import * as dotenv from "dotenv";
 import { YunzaiClient } from "@focalors/yunzai-client";
 import { GPTClient } from "@focalors/gpt-client";
 
-dotenv.config();
 
 const logger = createLogger({
     name: "forcalors",
