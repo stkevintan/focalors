@@ -15,6 +15,7 @@ export class Configuration extends BaseConfiguration {
     apiVersion = "2023-12-01-preview";
     masterId = process.env["MASTER_ID"];
     redisUri = process.env["REDIS_URI"];
+    tokenLimit = 100;
     get allowIdentities(): Set<string> {
         return new Set(
             (process.env["OPENAI_ALLOW_IDENTITIES"] ?? "")

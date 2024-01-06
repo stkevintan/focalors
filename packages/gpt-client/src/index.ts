@@ -5,6 +5,7 @@ import {
     OnebotClient,
     OnebotWechat,
     OnebotWechatToken,
+    ReplyMessageSegment,
     TextMessageSegment,
 } from "@focalors/onebot-protocol";
 import { OpenAI } from "openai";
@@ -15,6 +16,8 @@ import { inject, injectable } from "tsyringe";
 import { logger } from "./logger";
 import { Configuration } from "./config";
 import assert from "assert";
+import { ChatCompletionMessageParam } from "openai/resources";
+import { APIError } from "openai/error";
 
 @injectable()
 export class GPTClient extends OnebotClient {
@@ -157,6 +160,7 @@ export class GPTClient extends OnebotClient {
         // in group chat
         if (groupId) {
             if (!this.configuration.allowIdentities.has(groupId)) {
+                logger.debug(`group ${groupId} is not allowed, skip...`);
                 return false;
             }
             // if no one at me or reply me
@@ -167,24 +171,53 @@ export class GPTClient extends OnebotClient {
                         m.data.user_id === this.wechat.self.id
                 )
             ) {
+                logger.debug(
+                    `I am not at or mentioned in group ${groupId}, skip...`
+                );
                 return false;
             }
             // in personal chat
         } else if (!this.configuration.allowIdentities.has(userId!)) {
+            logger.debug(`user ${userId} is not allowed, skip...`);
             return false;
         }
 
-        const segments = message.filter(
+        const segment = message.find(
             (m): m is TextMessageSegment => m.type === "text"
         );
-        const messages = segments.map((s) => s.data.text).filter((t) => !!t);
-        if (messages.length === 0) {
-            logger.warn(`No text message, skip...`);
+        const text = stripAt(segment?.data.text ?? "").trim();
+        if (!text || text.length > this.configuration.tokenLimit) {
+            logger.warn(`Invalid text length: ${text?.length ?? 0}, skip...`);
             return false;
         }
+        logger.debug(`Processing completion for ${text}...`);
+
+        const messages: ChatCompletionMessageParam[] = [
+            {
+                role: "user",
+                content: text,
+            },
+        ];
+        // if the message was replied, add the reply content into context
+        const contextSegment = message.find(
+            (m): m is ReplyMessageSegment => m.type === "reply"
+        );
+        const context = contextSegment?.data.message_content;
+
+        if (typeof context === "string") {
+            const content = stripAt(context)
+                .trim()
+                .substring(0, this.configuration.tokenLimit);
+            messages.unshift({
+                role: "assistant",
+                content,
+            });
+            logger.debug(`Prepended assistant context:`, content);
+        }
+
         try {
             const completion = await this.openai.chat.completions.create({
-                messages: messages.map((m) => ({ role: "user", content: m })),
+                messages,
                 model: this.configuration.deployment ?? "",
             });
             // for await (const part of completion) {
@@ -192,11 +225,17 @@ export class GPTClient extends OnebotClient {
             //     this.send({ message: text, target: from });
             // }
             this.send(completion.choices[0]?.message.content ?? "", from);
+            logger.debug(`Completion processed`);
+            return true;
         } catch (err) {
-            logger.error(err);
+            if (err instanceof APIError) {
+                this.send(`糟糕, 接口${err.status}啦！${err.code}`, from);
+                logger.error(`Completion API error:`, err);
+                return true;
+            }
+            logger.error(`Completion failed:`, err);
             return false;
         }
-        return true;
     }
     async start(): Promise<void> {
         assert(this.configuration.apiKey, "OPENAI_APIKEY is empty");
@@ -215,4 +254,11 @@ function matchPattern(message: MessageSegment[], pattern: RegExp) {
         (m): m is TextMessageSegment => m.type === "text"
     );
     return first?.data.text.match(pattern);
+}
+
+function stripAt(text: string): string {
+    if (!text) {
+        return text;
+    }
+    return text.replace(/@\S+/g, "");
 }
