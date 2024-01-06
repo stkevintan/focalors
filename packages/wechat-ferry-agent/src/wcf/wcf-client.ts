@@ -51,7 +51,7 @@ export class WcfClient {
     }
 
     start() {
-        const { port, host } = this.configuration.wcfHost;
+        const { port, host } = this.configuration.wcfCallback;
         this.server.listen(port, host, () => {
             logger.info(
                 `wcf http server is listening on http://${host}:${port}`
@@ -74,7 +74,7 @@ export class WcfClient {
     }
 
     private getUrl(path: string) {
-        const { port, host } = this.configuration.wcfServer;
+        const { port, host } = this.configuration.wcfApi;
         return `http://${host}:${port}${path}`;
     }
 
