@@ -73,7 +73,7 @@ export class GPTClient extends OnebotClient {
             const ret = matchPattern(message, /^!\s*(add|del|list)(.*)$/);
             if (ret?.[0]) {
                 logger.debug("Processing admin command:", ret[0]);
-                const cacheKey = `admin.gpt.list`;
+                const cacheKey = `admin:gpt:list`;
                 assert(this.redisClient, "No redis client available");
                 const verb = ret[1];
                 const key = ret?.[2]?.trim();
