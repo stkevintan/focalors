@@ -31,11 +31,16 @@ export class Program implements AsyncService {
     }
 
     async start() {
-        this.clients.map((client) => {
-            this.wechat.subscribe((message, target) =>
-                client.receive(message, target)
-            );
+        this.wechat.subscribe(async (message, target) => {
+            for (const client of this.clients) {
+                const ret = await client.receive(message, target);
+                if (ret) {
+                    return;
+                }
+            }
+        });
 
+        this.clients.map((client) => {
             client.subscribe((message, target) =>
                 this.wechat.send(message, target)
             );

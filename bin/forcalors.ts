@@ -5,6 +5,7 @@ import { WechatFerry } from "@focalors/wechat-ferry-agent";
 import path from "path";
 import * as dotenv from "dotenv";
 import { YunzaiClient } from "@focalors/yunzai-client";
+import { GPTClient } from "@focalors/gpt-client";
 
 dotenv.config();
 
@@ -15,7 +16,8 @@ const logger = createLogger({
 
 async function main() {
     try {
-        const program = Program.create(WechatFerry, YunzaiClient);
+        // TODO: start wechat and redis beforehand.
+        const program = Program.create(WechatFerry, YunzaiClient, GPTClient);
         await program.start();
         process.on("SIGINT", async () => {
             logger.info("\nGracefully shutting down from SIGINT (Ctrl+C)");

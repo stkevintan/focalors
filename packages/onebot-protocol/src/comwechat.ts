@@ -89,8 +89,10 @@ export interface ImageMessageSegment {
 export interface ReplyMessageSegment {
     type: "reply";
     data: {
-        message_id: string;
         user_id: string;
+        message_id: string;
+        // extra message
+        message_content: unknown;
     };
 }
 

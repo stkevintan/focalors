@@ -308,9 +308,10 @@ export interface Contact {
     province: string;
     city: string;
     gender: string;
+    avatar: "";
 }
 
-export interface ContactWithAvatar extends Contact {
+export interface ContactWithAvatar extends Omit<Contact, 'avatar'> {
     avatar: string;
 }
 

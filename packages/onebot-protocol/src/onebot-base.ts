@@ -37,6 +37,7 @@ export abstract class OnebotClient implements AsyncService {
             configuration.imageCacheDirectory,
             configuration.botId
         );
+        this.setupAutoCleanTask();
     }
     protected setupAutoCleanTask() {
         try {
@@ -75,9 +76,13 @@ export abstract class OnebotWechat implements AsyncService {
         callback: (message: MessageSegment[], target: MessageTarget2) => void
     ): void;
 
-    abstract getFriends(): Promise<FriendInfo[]>;
-    abstract getGroups(): Promise<GroupInfo[]>;
-    abstract getFriend(userId: string, groupId?: string): Promise<FriendInfo>;
+    abstract getFriends(withAvatar?: boolean): Promise<FriendInfo[]>;
+    abstract getGroups(withAvatar?: boolean): Promise<GroupInfo[]>;
+    abstract getFriend(
+        userId: string,
+        groupId?: string,
+        withAvatar?: boolean
+    ): Promise<FriendInfo>;
 }
 
 export const OnebotWechatToken: InjectionToken<OnebotWechat> = "onebot_wechat";
@@ -114,4 +119,14 @@ async function removeUploadedFiles(dir: string) {
     } catch (err) {
         logger.debug("clear outdated files failed:", err);
     }
+}
+
+export function expandTarget(
+    target: MessageTarget2
+):
+    | { groupId: string; userId?: string }
+    | { groupId: undefined; userId: string } {
+    return typeof target === "string"
+        ? { groupId: undefined, userId: target }
+        : target;
 }

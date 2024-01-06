@@ -40,7 +40,7 @@ export class Wechaty extends OnebotWechat {
     override subscribe(
         callback: (message: MessageSegment[], from: MessageTarget2) => void
     ) {
-        this.bot.on("message", (message) => {
+        this.bot.on("message", async (message) => {
             const talker = message.talker();
             if (talker.self()) {
                 logger.warn(`Self message, skip...`);
@@ -48,6 +48,16 @@ export class Wechaty extends OnebotWechat {
             }
             const room = message.room();
             const segment: MessageSegment[] = [];
+            const mentions = await message.mentionList();
+            segment.push(
+                ...mentions.map<MentionMessageSegment>((m) => ({
+                    type: "mention",
+                    data: {
+                        user_id: m.id,
+                        is_self: m.self(),
+                    },
+                }))
+            );
             switch (message.type()) {
                 case types.Message.Text:
                     segment.push({

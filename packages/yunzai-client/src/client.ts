@@ -27,6 +27,8 @@ import { Defer } from "./utils/defer";
 import { logger } from "./logger";
 import path from "path";
 
+const hint = `本次深渊杯角色属性预览：\n\n1 : ['火', '草', '火', '雷']\n2 : ['风', '草', '冰', '冰'] \n3 : ['火', '草', '风', '风']\n4 : ['风', '火', '草', '水']\n5 : ['草', '草', '水', '草']`;
+
 @injectable()
 export class YunzaiClient extends OnebotClient {
     private client?: ws;
@@ -54,9 +56,7 @@ export class YunzaiClient extends OnebotClient {
             bots: [{ online: true, self: this.self }],
         }),
         upload_file: async (file) => {
-            const name = randomUUID();
-            logger.info("upload_file ->", file.name);
-            const filename = file.name ?? `${name}.jpg`;
+            const filename = file.name ?? `${randomUUID()}`;
             const imagePath = path.resolve(this.cacheDir, filename);
             const filebox = toFileBox(file, filename);
             if (filebox) {
@@ -243,17 +243,37 @@ export class YunzaiClient extends OnebotClient {
                     {
                         type: "card",
                         data: {
-                            name: '',
-                            digest: '',
+                            name: "",
+                            digest: "",
                             title: "Random Abyss",
                             account: "gh_cabafdd5cf81",
                             thumburl: `http://mmbiz.qpic.cn/sz_mmbiz_png/nMeboN2UZ1ghzh1zzpN3xrYDUiaENePuH9JiaoBLVJhTfYkBh4Z9icBNVYfqS7ylaBEBhJX22nwLZ5yGL0dSDOFxQ/0?wx_fmt=png`,
                             // eslint-disable-next-line no-useless-escape
                             // url: `https://mp.weixin.qq.com/mp/getmasssendmsg?__biz=MzkyMjYyMzY1MA==#wechat_webview_type=1&wechat_redirect","title_key":"__mp_wording__brandinfo_history_massmsg"`
-                            url: `https://mp.weixin.qq.com/mp/getmasssendmsg?__biz=MzkyMjYyMzY1MA==#wechat_webview_type=1&wechat_redirect`
-                        }
-                    }
+                            url: `https://mp.weixin.qq.com/mp/getmasssendmsg?__biz=MzkyMjYyMzY1MA==#wechat_webview_type=1&wechat_redirect`,
+                        },
+                    },
+                    {
+                        type: "text",
+                        data: {
+                            text: hint,
+                        },
+                    },
+                ],
+                ...target,
+            });
+            return true;
+        }
 
+        if (/^#\s*随机深渊杯角色属性\s*$/.test(segment.data.text)) {
+            this.send({
+                message: [
+                    {
+                        type: "text",
+                        data: {
+                            text: hint,
+                        },
+                    },
                 ],
                 ...target,
             });

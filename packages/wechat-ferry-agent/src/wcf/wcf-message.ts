@@ -131,7 +131,7 @@ export class WcfMessage {
         return this.message.roomid;
     }
 
-    get content(): string | Record<string, any> {
+    get content(): any {
         if (this._contentCache) {
             return this._contentCache;
         }
