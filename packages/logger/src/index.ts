@@ -20,8 +20,9 @@ export function createLogger(settings: CreateLoggerParams = {}) {
     const logger = new Logger({
         minLevel: 2,
         ...settings,
-        type: 'hidden',
+        type: "hidden",
     });
+    logger.attachTransport(stdoutTransport);
     logger.attachTransport(logFileTransport);
     // logger.attachTransport(socketClient.log.bind(socketClient));
     logger.attachTransport(logSyslogTransport);
@@ -60,6 +61,17 @@ export function createLogger(settings: CreateLoggerParams = {}) {
             logMeta.name ?? "root"
         }] ${message} @${shortFilePathLineCol(logMeta)}\n`;
         stream.write(line, "utf8");
+    }
+    
+    function stdoutTransport(logObject: ILogObj) {
+        const { message, logMeta } = parseLogObj(logObject);
+        if (logMeta.logLevelId > 2) {
+            console.log(
+                `${logMeta.name} [${
+                    logMeta.logLevelName
+                }] - ${message} @ ${shortFilePathLineCol(logMeta)}`
+            );
+        }
     }
 
     return logger;
