@@ -142,9 +142,18 @@ importers:
       '@swc/helpers':
         specifier: ~0.5.2
         version: 0.5.3
+      '@types/google-protobuf':
+        specifier: ^3.15.12
+        version: 3.15.12
+      '@types/nanomsg':
+        specifier: ^4.2.3
+        version: 4.2.3
       fast-xml-parser:
         specifier: ^4.3.2
         version: 4.3.2
+      google-protobuf:
+        specifier: ^3.21.2
+        version: 3.21.2
       nanomsg:
         specifier: ^4.2.1
         version: 4.2.1
@@ -3100,6 +3109,10 @@ packages:
     resolution: {integrity: sha512-qQR1dr2rGIHYlJulmr8Ioq3De0Le9E4MJ5AiaeAETJJpndT1uUNHsGFK3L/UIu+rbkQSdj8J/w2bCsBZc/Y5fQ==}
     dev: true
 
+  /@types/google-protobuf@3.15.12:
+    resolution: {integrity: sha512-40um9QqwHjRS92qnOaDpL7RmDK15NuZYo9HihiJRbYkMQZlWnuH8AdvbMy8/o6lgLmKbDUKa+OALCltHdbOTpQ==}
+    dev: false
+
   /@types/http-cache-semantics@4.0.4:
     resolution: {integrity: sha512-1m0bIFVc7eJWyve9S0RnuRgcQqF/Xd5QsUZAZeQFr1Q3/p9JWoQQEqmVy+DPTNpGXwhgIetAoYF8JSc33q29QA==}
     dev: true
@@ -3120,6 +3133,12 @@ packages:
 
   /@types/long@4.0.2:
     resolution: {integrity: sha512-MqTGEo5bj5t157U6fA/BiDynNkn0YknVdh48CMPkTSpFTVmvao5UQmm7uEF6xBEo7qIMAlY/JSleYaE6VOdpaA==}
+    dev: false
+
+  /@types/nanomsg@4.2.3:
+    resolution: {integrity: sha512-sOI2JzJtl48oMvIlCJ8p0OHJZ+IUZlZIvOljzhPiwm/pcWPbMEbK/T05t1MRpT5TxGGq7NyQYPYmlitdwGs6xQ==}
+    dependencies:
+      '@types/node': 18.7.1
     dev: false
 
   /@types/node-fetch@2.6.10:

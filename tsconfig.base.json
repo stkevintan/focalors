@@ -20,6 +20,7 @@
             "@focalors/onebot-protocol": [
                 "packages/onebot-protocol/src/index.ts"
             ],
+            "@focalors/wcf-native": ["packages/wcf-native/src/index.ts"],
             "@focalors/wechat-bridge": ["packages/wechat-bridge/src/index.ts"],
             "@focalors/wechat-ferry-agent": [
                 "packages/wechat-ferry-agent/src/index.ts"

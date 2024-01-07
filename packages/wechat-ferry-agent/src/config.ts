@@ -13,4 +13,9 @@ export class WcfConfiguration {
         port: 9999,
         host: "127.0.0.1",
     };
+
+    readonly wcfProto = {
+        port: 10086,
+        host: '127.0.0.1'
+    }
 }
