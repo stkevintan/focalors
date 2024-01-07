@@ -5,3 +5,4 @@ logs/
 .env
 tmp/
 .nx/cache
+target/

@@ -1867,7 +1867,7 @@ export namespace wcf {
         serializeBinary(): Uint8Array {
             return this.serialize();
         }
-        static  deserializeBinary(bytes: Uint8Array): PathMsg {
+        static deserializeBinary(bytes: Uint8Array): PathMsg {
             return PathMsg.deserialize(bytes);
         }
     }

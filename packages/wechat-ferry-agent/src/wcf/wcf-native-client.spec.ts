@@ -7,15 +7,27 @@ describe("wcf native client", () => {
     beforeEach(async () => {
         client = container.resolve(WcfNativeClient);
         await client.start();
+        console.log("client state", client.connected);
+        expect(client.connected).toBe(true);
     });
 
     afterEach(async () => {
         await client.stop();
     });
 
-    it("should get is_login message", async () => {
-        console.log("client state", client.state);
-        expect(Object.values(client.state)).toStrictEqual([1]);
+    it("isLogin", async () => {
         await expect(client.isLogin()).resolves.toBeDefined();
     });
+
+    it("getSelfWxid", async () => {
+        await expect(client.getSelfWxid()).resolves.toBeDefined();
+    });
+
+    it("getUserInfo", async () => {
+        await expect(client.getUserInfo()).resolves.toHaveProperty('wxid');
+    });
+
+    it("getContact", async () => {
+        await expect(client.getContact('filehelper')).resolves.toHaveProperty("wxid");
+    })
 });
