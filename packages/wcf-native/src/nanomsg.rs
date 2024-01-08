@@ -22,6 +22,9 @@ pub struct Socket {
   pub options: SocketOptions,
 }
 
+/**
+ * A simple block Pair1 nanomsg protocol binding
+ */
 #[napi]
 impl Socket {
   #[napi(constructor)]
@@ -35,18 +38,23 @@ impl Socket {
   }
 
   pub fn create_client(opt: &SocketOptions) -> Result<nng::Socket> {
-    match nng::Socket::new(Protocol::Pair1) {
-      Ok(client) => {
+    nng::Socket::new(Protocol::Pair1)
+      .map(|client| {
         let _ = client.set_opt::<RecvTimeout>(Some(Duration::from_millis(
-          opt.recv_timeout.unwrap_or(5000).try_into().unwrap(),
+          opt
+            .recv_timeout
+            .and_then(|i| i.try_into().ok())
+            .unwrap_or(5000),
         )));
         let _ = client.set_opt::<SendTimeout>(Some(Duration::from_millis(
-          opt.send_timeout.unwrap_or(5000).try_into().unwrap(),
+          opt
+            .send_timeout
+            .and_then(|i| i.try_into().ok())
+            .unwrap_or(5000),
         )));
-        Ok(client)
-      }
-      Err(e) => Err(Error::from_reason(format!("Initiate socket failed: {}", e))),
-    }
+        client
+      })
+      .map_err(|e| Error::from_reason(format!("Initiate socket failed: {}", e)))
   }
 
   #[napi]

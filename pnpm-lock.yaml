@@ -157,6 +157,9 @@ importers:
       fast-xml-parser:
         specifier: ^4.3.2
         version: 4.3.2
+      file-box:
+        specifier: ^1.4.15
+        version: 1.4.15
       google-protobuf:
         specifier: ^3.21.2
         version: 3.21.2
