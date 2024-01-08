@@ -34,7 +34,7 @@ export class WcfNativeClient implements AsyncService {
         const url = `tcp://${this.configuration.wcfProto.host}:${
             this.configuration.wcfProto.port + (rev ? 1 : 0)
         }`;
-        logger.info("wcf native url:", url);
+        logger.info(`wcf ${rev ? 'msg' : 'command'} url:`, url);
         return url;
     }
 
@@ -406,6 +406,7 @@ export class WcfNativeClient implements AsyncService {
         return rsp.status;
     }
 
+    /** @deprecated not implmeneted */
     sendXML(
         xml: { content: string; path?: string; type: number },
         receiver: string
@@ -423,6 +424,7 @@ export class WcfNativeClient implements AsyncService {
         return rsp.status;
     }
 
+    /** @deprecated not implmeneted */
     sendEmotion(path: string, receiver: string): number {
         const req = new wcf.Request({
             func: wcf.Functions.FUNC_SEND_EMOTION,

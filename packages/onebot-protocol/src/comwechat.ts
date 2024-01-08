@@ -110,13 +110,24 @@ export interface CardMessageSegment {
     data: CardMessage;
 }
 
+/** extended */
+// export interface WxXMLMessageSegment {
+//     type: "wx.xml";
+//     data: {
+//         content: string;
+//         path?: string;
+//         type: number;
+//     };
+// }
+
 export type MessageSegment =
     | TextMessageSegment
     | MentionMessageSegment
     | ImageMessageSegment
     | ReplyMessageSegment
     | WxEmojiMessageSegment
-    | CardMessageSegment;
+    | CardMessageSegment
+    // | WxXMLMessageSegment;
 
 export type Event = MetaConnectEvent | MetaStatusUpdateEvent | MessageEvent;
 

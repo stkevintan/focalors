@@ -30,7 +30,7 @@ pub struct Socket {
 }
 
 /**
- * A simple block Pair1 nanomsg protocol binding
+ * A simple Pair1 nanomsg protocol binding
  */
 #[napi]
 impl Socket {
@@ -105,7 +105,6 @@ impl Socket {
     options: Option<SocketOptions>,
     callback: JsFunction,
   ) -> Result<MessageRecvDisposable> {
-    print!("Recved error");
     let tsfn: ThreadsafeFunction<Buffer, ErrorStrategy::CalleeHandled> =
       callback.create_threadsafe_function(1, |ctx| Ok(vec![ctx.value]))?;
     let client = Self::create_client(&options.unwrap_or_default())?;

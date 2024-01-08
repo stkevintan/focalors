@@ -54,6 +54,9 @@ describe("wcf native client", () => {
         expect(Object.keys(ret)).toHaveLength(0);
     });
 
+    it("disableMsgReceiver", async () => {
+        expect(client.disableMsgReceiver(true)).toBe(0);
+    })
     it.skip(
         "enableMsgReciver",
         async () => {

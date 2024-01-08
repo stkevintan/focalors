@@ -281,6 +281,9 @@ export class WechatFerry extends OnebotWechat {
                 case "card":
                     this.bot.sendRichText(message.data, groupId ?? userId!);
                     break;
+
+                // case "wx.xml":
+                //     this.bot.sendXML(message.data, groupId ?? userId);
             }
         }
         return true;
