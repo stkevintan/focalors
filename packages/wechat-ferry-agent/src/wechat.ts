@@ -1,5 +1,5 @@
 import { inject, singleton } from "tsyringe";
-import { MessageType, UserInfo, WcfClient, WcfMessage } from "./wcf";
+import { MessageType, WcfMessage } from "./wcf";
 import { logger } from "./logger";
 import { WcfConfiguration } from "./config";
 import assert from "assert";
@@ -11,18 +11,32 @@ import {
     MessageTarget2,
     OnebotWechat,
 } from "@focalors/onebot-protocol";
+import { WcfNativeClient } from "./wcf/wcf-native-client";
+import { wcf } from "./wcf/proto-generated/wcf";
+
+export interface Contact {
+    wxid?: string;
+    code?: string;
+    remark?: string;
+    name?: string;
+    country?: string;
+    province?: string;
+    city?: string;
+    gender?: number;
+    avatar?: string;
+}
 
 @singleton()
 export class WechatFerry extends OnebotWechat {
     constructor(
-        @inject(WcfClient) protected bot: WcfClient,
         @inject(WcfConfiguration)
-        protected configuration: WcfConfiguration
+        protected configuration: WcfConfiguration,
+        @inject(WcfNativeClient) protected bot: WcfNativeClient
     ) {
         super();
     }
 
-    private currentUser?: UserInfo;
+    private currentUser?: wcf.UserInfo;
 
     get self() {
         assert(
@@ -37,7 +51,7 @@ export class WechatFerry extends OnebotWechat {
 
     async start(): Promise<void> {
         this.bot.start();
-        this.currentUser = await this.bot.getCurrentUser();
+        this.currentUser = this.bot.getUserInfo();
         logger.info("wechat-ferry started");
     }
 
@@ -48,19 +62,20 @@ export class WechatFerry extends OnebotWechat {
     override subscribe(
         callback: (message: MessageSegment[], from: MessageTarget2) => void
     ) {
-        return this.bot.on("message", (message: WcfMessage) => {
+        return this.bot.on((wxmsg: wcf.WxMsg) => {
+            const message = new WcfMessage(wxmsg);
             logger.debug(
                 `Received Message: ${message.id} [From ${message.sender}]`,
                 `[Type:${message.typeName}]`,
                 message.isGroup ? `[Group]` : "",
-                message.raw
+                message.xml
             );
             const msgSegments: MessageSegment[] = [];
             if (message.isSelf) {
                 logger.warn(`Self message, skip...`);
             }
 
-            if (message.isAt) {
+            if (message.isAt(this.self.id)) {
                 msgSegments.push({
                     type: "mention",
                     data: { user_id: this.self.id },
@@ -116,30 +131,76 @@ export class WechatFerry extends OnebotWechat {
         });
     }
 
+    queryAvatar(condition = `wxid LIKE "wxid_%"`) {
+        const sql = `SELECT usrName as wxid, smallHeadImgUrl, bigHeadImgUrl FROM ContactHeadImgUrl WHERE ${condition};`;
+        const ret = this.bot.dbSqlQuery("MicroMsg.db", sql) as Array<{
+            wxid: string;
+            smallHeadImgUrl: string;
+            bigHeadImgUrl: string;
+        }>;
+        return ret.map((r) => ({
+            wxid: r.wxid,
+            avatar: r.bigHeadImgUrl || r.smallHeadImgUrl || "",
+        }));
+    }
+
+    enhanceContactsWithAvatars(contacts: wcf.RpcContact[]): Contact[] {
+        if (!contacts.length) {
+            return [];
+        }
+        const wxids = contacts.map((c) => `"${c.wxid}"`).join(",");
+        const heads = this.queryAvatar(`wxid IN (${wxids})`);
+        const headMap = Object.fromEntries(
+            heads.map((h) => [h.wxid, h] as const)
+        );
+        return contacts.map<Contact>((c) => {
+            const head = headMap[c.wxid];
+            return {
+                ...c.toObject(),
+                avatar: head?.avatar ?? "",
+            };
+        });
+    }
+
     async getFriends(withAvatar = true): Promise<FriendInfo[]> {
-        const friends = await this.bot.getFriendList();
+        const friends = this.bot.getFriends();
         const contacts = withAvatar
-            ? await this.bot.enhanceContactsWithAvatars(friends)
+            ? this.enhanceContactsWithAvatars(friends)
             : friends;
         return contacts.map((c) => ({
-            user_id: c.wxid,
-            user_name: c.name,
-            user_displayname: c.name,
+            user_id: c.wxid!,
+            user_name: c.name!,
+            user_displayname: c.name ?? "",
             user_remark: c.remark,
-            "wx.avatar": c.avatar,
+            "wx.avatar": (c as Contact).avatar ?? "",
         }));
     }
 
     async getGroups(withAvatar = true): Promise<GroupInfo[]> {
-        const groups = await this.bot.getGroups();
+        const groups = this.bot.getChatRooms();
         const contacts = withAvatar
-            ? await this.bot.enhanceContactsWithAvatars(groups)
+            ? this.enhanceContactsWithAvatars(groups)
             : groups;
         return contacts.map((g) => ({
-            group_id: g.wxid,
-            group_name: g.name,
-            "wx.avatar": g.avatar,
+            group_id: g.wxid!,
+            group_name: g.name!,
+            "wx.avatar": (g as Contact).avatar,
         }));
+    }
+
+    getGroupMember(roomId: string, userId: string) {
+        const members = this.bot.getChatRoomMembers(roomId);
+        const userName = members[userId];
+        assert(
+            userName,
+            `Group member ${userId} should be inside group ${roomId}, but not: ${members}`
+        );
+        const friend = this.bot.getContact(userId);
+        return {
+            wxid: userId,
+            name: userName,
+            ...friend.toObject(),
+        };
     }
 
     async getFriend(
@@ -148,9 +209,9 @@ export class WechatFerry extends OnebotWechat {
         withAvatar = true
     ): Promise<FriendInfo> {
         const user = groupId
-            ? (await this.bot.getContact(userId)) ??
-              (await this.bot.getGroupMember(groupId, userId))
-            : await this.bot.getContact(userId);
+            ? this.bot.getContact(userId) ??
+              this.getGroupMember(groupId, userId)
+            : this.bot.getContact(userId);
         assert(
             user,
             `Cannot find contact: ${userId} ${
@@ -159,7 +220,7 @@ export class WechatFerry extends OnebotWechat {
         );
 
         const [avatar] = withAvatar
-            ? await this.bot.queryAvatar(`wxid = "${userId}"`)
+            ? this.queryAvatar(`wxid = "${userId}"`)
             : [{ avatar: "" }];
         return {
             user_id: user.wxid,
@@ -201,7 +262,7 @@ export class WechatFerry extends OnebotWechat {
                     break;
                 // merge adjacent text message?
                 case "text":
-                    await this.bot.sendText(
+                    this.bot.sendTxt(
                         message.data.text,
                         groupId ?? userId!,
                         mentions
@@ -211,14 +272,14 @@ export class WechatFerry extends OnebotWechat {
                 case "image":
                 case "wx.emoji":
                     // unable to reply with an image in wechat
-                    await this.bot.sendImage(
+                    this.bot.sendImage(
                         // todo
                         message.data.file_id,
                         groupId ?? userId!
                     );
                     break;
                 case "card":
-                    await this.bot.sendCard(message.data, groupId ?? userId!);
+                    this.bot.sendRichText(message.data, groupId ?? userId!);
                     break;
             }
         }

@@ -1,6 +1,13 @@
-use napi::bindgen_prelude::*;
+use napi::{
+  bindgen_prelude::*,
+  threadsafe_function::{ErrorStrategy, ThreadsafeFunction, ThreadsafeFunctionCallMode},
+};
 use napi_derive::napi;
-use std::time::Duration;
+use std::{
+  sync::mpsc::{self, Sender},
+  thread,
+  time::Duration,
+};
 
 use nng::{
   options::{Options, RecvTimeout, SendTimeout},
@@ -90,5 +97,62 @@ impl Socket {
   #[napi]
   pub fn connected(&self) -> bool {
     self.connected
+  }
+
+  #[napi]
+  pub fn recv_message(
+    url: String,
+    options: Option<SocketOptions>,
+    callback: JsFunction,
+  ) -> Result<MessageRecvDisposable> {
+    print!("Recved error");
+    let tsfn: ThreadsafeFunction<Buffer, ErrorStrategy::CalleeHandled> =
+      callback.create_threadsafe_function(1, |ctx| Ok(vec![ctx.value]))?;
+    let client = Self::create_client(&options.unwrap_or_default())?;
+    client
+      .dial(&url)
+      .map_err(|e| Error::new(Status::GenericFailure, format!("Failed to connect: {}", e)))?;
+    let (tx, rx) = mpsc::channel::<()>();
+    thread::spawn(move || loop {
+      if let Ok(_) = rx.try_recv() {
+        client.close();
+        break;
+      }
+      match client.recv() {
+        Ok(msg) => {
+          tsfn.clone().call(
+            Ok(msg.as_slice().into()),
+            ThreadsafeFunctionCallMode::NonBlocking,
+          );
+        }
+        Err(e) => {
+          if let nng::Error::Closed = e {
+            return;
+          }
+        }
+      }
+    });
+    return Ok(MessageRecvDisposable { closed: false, tx });
+  }
+}
+
+#[napi]
+pub struct MessageRecvDisposable {
+  closed: bool,
+  tx: Sender<()>,
+}
+
+#[napi]
+impl MessageRecvDisposable {
+  #[napi]
+  pub fn dispose(&mut self) -> Result<()> {
+    if self.closed == false {
+      self
+        .tx
+        .send(())
+        .map_err(|e| Error::from_reason(format!("Failed to stop msg channle: {}", e)))?;
+      self.closed = true;
+    }
+    Ok(())
   }
 }

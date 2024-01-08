@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { XMLParser } from "fast-xml-parser";
 import { logger } from "../logger";
+import { wcf } from "./proto-generated/wcf";
 
 /*
 "0": "朋友圈消息",
@@ -66,23 +67,6 @@ export enum MessageType {
     File = 1090519089,
 }
 
-export interface RawMessage {
-    id: number;
-    /** timestamp */
-    ts: number;
-    sign: string;
-    type: MessageType;
-    xml: string;
-    sender: string;
-    roomid: string;
-    content: string;
-    thumb: string;
-    extra: string;
-    is_at: boolean;
-    is_self: boolean;
-    is_group: boolean;
-}
-
 const xmlPattern = /^<(msg|msgsource)>/;
 const xmlParser: XMLParser = new XMLParser({
     ignoreAttributes: true,
@@ -95,7 +79,7 @@ const xmlParser: XMLParser = new XMLParser({
     },
 });
 export class WcfMessage {
-    constructor(private readonly message: RawMessage) {}
+    constructor(private readonly message: wcf.WxMsg) {}
 
     private _contentCache?: string | Record<string, any> = undefined;
 
@@ -119,8 +103,38 @@ export class WcfMessage {
         return this.message.is_self;
     }
 
-    get isAt() {
-        return this.message.is_at;
+    isAt(wxid: string) {
+        /*
+          """是否被 @：群消息，在 @ 名单里，并且不是 @ 所有人"""
+        if not self.from_group():
+            return False  # 只有群消息才能 @
+
+        if not re.findall(f"<atuserlist>.*({wxid}).*</atuserlist>", self.xml):
+            return False  # 不在 @ 清单里
+
+        if re.findall(r"@(?:所有人|all|All)", self.content):
+            return False  # 排除 @ 所有人
+
+        return True
+        */
+        if (!this.isGroup) {
+            return false;
+        }
+        if (
+            !new RegExp(`<atuserlist\\>.*(${wxid}).*</atuserlist>`).test(
+                this.xml
+            )
+        ) {
+            return false;
+        }
+        if (/@(?:所有人|all|All)/.test(this.message.content)) {
+            return false;
+        }
+
+        return true;
+    }
+    get xml() {
+        return this.message.xml;
     }
 
     get isGroup() {
@@ -151,7 +165,7 @@ export class WcfMessage {
     get text() {
         return typeof this.content === "string"
             ? this.content
-            : this.content["msg"]["appmsg"]?.["title"] as string | undefined;
+            : (this.content["msg"]["appmsg"]?.["title"] as string | undefined);
     }
 
     get referContent() {

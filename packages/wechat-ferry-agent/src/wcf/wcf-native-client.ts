@@ -5,6 +5,7 @@ import { WcfConfiguration } from "../config";
 import { logger } from "../logger";
 import { wcf } from "./proto-generated/wcf";
 import * as rd from "./proto-generated/roomdata";
+import { EventEmitter } from "events";
 
 @singleton()
 export class WcfNativeClient implements AsyncService {
@@ -15,8 +16,10 @@ export class WcfNativeClient implements AsyncService {
         filehelper: "文件传输助手",
         newsapp: "新闻",
     };
-    private msgSocket?: Socket;
+    private isMsgReceiving = false;
+    private msgDispose?: () => void;
     private socket: Socket;
+    private readonly msgEventSub = new EventEmitter();
     constructor(
         @inject(WcfConfiguration) private configuration: WcfConfiguration
     ) {
@@ -34,9 +37,17 @@ export class WcfNativeClient implements AsyncService {
         logger.info("wcf native url:", url);
         return url;
     }
+
+    private get msgListenerCount() {
+        return this.msgEventSub.listenerCount("wxmsg");
+    }
+
     async start(): Promise<void> {
         try {
             this.socket.connect(this.getConnUrl());
+            if (this.msgListenerCount > 0) {
+                this.enableMsgReciver();
+            }
         } catch (err) {
             logger.error("cannot connect to wcf RPC server");
             throw err;
@@ -44,6 +55,7 @@ export class WcfNativeClient implements AsyncService {
     }
 
     async stop(): Promise<void> {
+        this.disableMsgReceiver();
         this.socket.close();
     }
 
@@ -184,14 +196,18 @@ export class WcfNativeClient implements AsyncService {
         );
     }
 
-    getChatRoomMembers(roomid: string): Record<string, string> {
+    getChatRoomMembers(roomid: string, times = 5): Record<string, string> {
+        if (times === 0) {
+            return {};
+        }
         const [room] = this.dbSqlQuery(
             "MicroMsg.db",
             `SELECT RoomData FROM ChatRoom WHERE ChatRoomName = '${roomid}';`
         );
         if (!room) {
-            return {};
+            return this.getChatRoomMembers(roomid, times - 1) ?? {};
         }
+
         const r = rd.com.iamteer.wcf.RoomData.deserialize(
             room["RoomData"] as Buffer
         );
@@ -204,6 +220,7 @@ export class WcfNativeClient implements AsyncService {
         const userDict = Object.fromEntries(
             userRds.map((u) => [u["UserName"], u["NickName"]] as const)
         );
+
         return Object.fromEntries(
             r.members.map((member) => [
                 member.wxid,
@@ -333,14 +350,33 @@ export class WcfNativeClient implements AsyncService {
      * @param aters 要 @ 的 wxid，多个用逗号分隔；`@所有人` 只需要 `notify@all`
      * @returns 0 为成功，其他失败
      */
-    sendTxt(msg: string, receiver: string, aters: string): number {
+    sendTxt(
+        msg: string,
+        receiver: string,
+        mentions?: "all" | string[]
+    ): number {
+        const body = {
+            msg,
+            receiver,
+            aters: "",
+        };
+        if (mentions === "all") {
+            body.msg = `@所有人 ${body.msg}`;
+            body.aters = "notify@all";
+        } else if (Array.isArray(mentions)) {
+            mentions = Array.from(new Set(mentions));
+            const aliasList = mentions.map((mention) =>
+                this.getAliasInChatRoom(receiver, mention)
+            );
+            const mentionTexts = aliasList
+                .map((alias) => `@${alias}`)
+                .join(" ");
+            body.msg = `${mentionTexts} ${body.msg}`;
+            body.aters = mentions.join(",");
+        }
         const req = new wcf.Request({
             func: wcf.Functions.FUNC_SEND_TXT,
-            txt: new wcf.TextMsg({
-                msg,
-                receiver,
-                aters,
-            }),
+            txt: new wcf.TextMsg(body),
         });
         const rsp = this.sendRequest(req);
         return rsp.status;
@@ -544,7 +580,7 @@ export class WcfNativeClient implements AsyncService {
     }
 
     enableMsgReciver(pyq = false): boolean {
-        if (this.msgSocket) {
+        if (this.isMsgReceiving) {
             return true;
         }
         const req = new wcf.Request({
@@ -553,26 +589,70 @@ export class WcfNativeClient implements AsyncService {
         });
         const rsp = this.sendRequest(req);
         if (rsp.status !== 0) {
-            this.msgSocket = undefined;
+            this.isMsgReceiving = false;
             return false;
         }
         try {
-            this.msgSocket = this.connectToMsgChannel();
-
+            this.msgDispose = this.receiveMessage();
+            this.isMsgReceiving = true;
             return true;
         } catch (err) {
             logger.error(err);
-            this.msgSocket = undefined;
+            this.msgDispose?.();
+            this.isMsgReceiving = false;
             return false;
         }
     }
 
-    private connectToMsgChannel() {
-        const client = new Socket();
-        client.connect(this.getConnUrl(true));
-        return client;
+    disableMsgReceiver(force = false): number {
+        if (!force && !this.isMsgReceiving) {
+            return 0;
+        }
+        const req = new wcf.Request({
+            func: wcf.Functions.FUNC_DISABLE_RECV_TXT,
+        });
+        const rsp = this.sendRequest(req);
+        this.isMsgReceiving = false;
+        this.msgDispose?.();
+        this.msgDispose = undefined;
+        return rsp.status;
+    }
+
+    private receiveMessage() {
+        const disposable = Socket.recvMessage(
+            this.getConnUrl(true),
+            null,
+            this.messageCallback.bind(this)
+        );
+        return () => disposable.dispose();
+    }
+
+    private messageCallback(err: unknown | undefined, buf: Buffer) {
+        if (err) {
+            logger.error("Error while receiving msg:", err);
+            return;
+        }
+        const rsp = wcf.Response.deserialize(buf);
+        this.msgEventSub.emit("wxmsg", rsp.wxmsg);
+    }
+
+    on(callback: (msg: wcf.WxMsg) => void) {
+        this.msgEventSub.on("wxmsg", callback);
+        if (this.connected && this.msgEventSub.listenerCount("wxmsg") === 1) {
+            this.enableMsgReciver();
+        }
+        return () => {
+            if (
+                this.connected &&
+                this.msgEventSub.listenerCount("wxmsg") === 1
+            ) {
+                this.disableMsgReceiver();
+            }
+            this.msgEventSub.off("wxmsg", callback);
+        };
     }
 }
+
 function uint8Array2str(arr: Uint8Array) {
     return Buffer.from(arr).toString();
 }

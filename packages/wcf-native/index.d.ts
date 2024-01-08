@@ -7,7 +7,6 @@ export interface SocketOptions {
   recvTimeout?: number
   sendTimeout?: number
 }
-export function sum(a: number, b: number): number
 export class Socket {
   options: SocketOptions
   constructor(options?: SocketOptions | undefined | null)
@@ -15,4 +14,8 @@ export class Socket {
   send(req: Buffer): Buffer
   close(): void
   connected(): boolean
+  static recvMessage(url: string, options: SocketOptions | undefined | null, callback: (...args: any[]) => any): MessageRecvDisposable
+}
+export class MessageRecvDisposable {
+  dispose(): void
 }

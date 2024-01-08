@@ -1,2 +1,1 @@
-export * from './wcf-client';
-export * from './wcf-message';
+export * from "./wcf-message";

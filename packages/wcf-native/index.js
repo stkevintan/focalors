@@ -281,7 +281,7 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { Socket, sum } = nativeBinding
+const { Socket, MessageRecvDisposable } = nativeBinding
 
 module.exports.Socket = Socket
-module.exports.sum = sum
+module.exports.MessageRecvDisposable = MessageRecvDisposable

@@ -12,6 +12,7 @@ describe("wcf native client", () => {
     });
 
     afterEach(async () => {
+        client.disableMsgReceiver();
         await client.stop();
     });
 
@@ -52,4 +53,23 @@ describe("wcf native client", () => {
         const ret = client.getChatRoomMembers("not existed");
         expect(Object.keys(ret)).toHaveLength(0);
     });
+
+    it.skip(
+        "enableMsgReciver",
+        async () => {
+            let times = 3;
+            const handler = new Promise<void>((res) =>
+                client.on((msg) => {
+                    console.log("get msg", msg);
+                    times--;
+                    if (times <= 0) {
+                        res();
+                    }
+                })
+            );
+            client.enableMsgReciver();
+            await handler;
+        },
+        1 * 60 * 1000
+    );
 });
