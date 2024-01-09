@@ -1,5 +1,5 @@
 import { AsyncService } from "@focalors/onebot-protocol";
-import { Socket } from "@focalors/wcf-native";
+import { Socket } from "@rustup/nng";
 import { inject, singleton } from "tsyringe";
 import { WcfConfiguration } from "../config";
 import { logger } from "../logger";

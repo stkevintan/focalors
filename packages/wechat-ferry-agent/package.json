@@ -2,9 +2,8 @@
     "name": "@focalors/wechat-ferry-agent",
     "version": "0.0.1",
     "dependencies": {
+        "@rustup/nng": "^0.1.2",
         "@swc/helpers": "~0.5.2",
-        "@types/google-protobuf": "^3.15.12",
-        "@types/nanomsg": "^4.2.3",
         "fast-xml-parser": "^4.3.2",
         "file-box": "^1.4.15",
         "google-protobuf": "^3.21.2"
@@ -17,6 +16,7 @@
     "typings": "./src/index.d.ts",
     "devDependencies": {
         "grpc-tools": "^1.12.4",
+        "@types/google-protobuf": "^3.15.12",
         "protoc-gen-ts": "^0.8.7"
     }
 }
