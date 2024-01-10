@@ -1,5 +1,5 @@
 import { inject, singleton } from "tsyringe";
-import { MessageType, WcfMessage } from "./wcf";
+import { MessageType, WcfMessage } from "./wcf-message";
 import { logger } from "./logger";
 import { WcfConfiguration } from "./config";
 import assert from "assert";
@@ -10,33 +10,30 @@ import {
     MessageSegment,
     MessageTarget2,
     OnebotWechat,
+    UploadFileAction,
 } from "@focalors/onebot-protocol";
-import { WcfNativeClient } from "./wcf/wcf-native-client";
-import { wcf } from "./wcf/proto-generated/wcf";
+import { Contact, UserInfo, Wcferry, FileRef } from "@wcferry/core";
+import { randomUUID } from "crypto";
+import { createClient, RedisClientType } from "redis";
 
-export interface Contact {
-    wxid?: string;
-    code?: string;
-    remark?: string;
-    name?: string;
-    country?: string;
-    province?: string;
-    city?: string;
-    gender?: number;
+export interface Contact2 extends Contact {
     avatar?: string;
 }
 
 @singleton()
-export class WechatFerry extends OnebotWechat {
+export class WechatFerry implements OnebotWechat {
+    private bot: Wcferry;
+    private redis: RedisClientType;
+
     constructor(
         @inject(WcfConfiguration)
-        protected configuration: WcfConfiguration,
-        @inject(WcfNativeClient) protected bot: WcfNativeClient
+        protected configuration: WcfConfiguration
     ) {
-        super();
+        this.bot = new Wcferry(this.configuration.wcf);
+        this.redis = createClient({ url: this.configuration.redisUri });
     }
 
-    private currentUser?: wcf.UserInfo;
+    private currentUser?: UserInfo;
 
     get self() {
         assert(
@@ -52,17 +49,19 @@ export class WechatFerry extends OnebotWechat {
     async start(): Promise<void> {
         this.bot.start();
         this.currentUser = this.bot.getUserInfo();
+        await this.redis.connect();
         logger.info("wechat-ferry started");
     }
 
     async stop(): Promise<void> {
         this.bot.stop();
+        await this.redis.disconnect();
     }
 
-    override subscribe(
+    subscribe(
         callback: (message: MessageSegment[], from: MessageTarget2) => void
     ) {
-        return this.bot.on((wxmsg: wcf.WxMsg) => {
+        return this.bot.on((wxmsg) => {
             const message = new WcfMessage(wxmsg);
             logger.debug(
                 `Received Message: ${message.id} [From ${message.sender}]`,
@@ -99,10 +98,10 @@ export class WechatFerry extends OnebotWechat {
                             type: "reply",
                             data: {
                                 user_id:
-                                    message.content.msg.appmsg?.refermsg
+                                    message.content.msg?.appmsg?.refermsg
                                         ?.chatusr,
                                 message_id:
-                                    message.content.msg.appmsg?.refermsg?.svrid,
+                                    message.content.msg?.appmsg?.refermsg?.svrid,
                                 message_content:
                                     message.content.msg?.appmsg?.refermsg
                                         ?.content,
@@ -144,7 +143,7 @@ export class WechatFerry extends OnebotWechat {
         }));
     }
 
-    enhanceContactsWithAvatars(contacts: wcf.RpcContact[]): Contact[] {
+    enhanceContactsWithAvatars(contacts: Contact[]): Contact2[] {
         if (!contacts.length) {
             return [];
         }
@@ -153,10 +152,10 @@ export class WechatFerry extends OnebotWechat {
         const headMap = Object.fromEntries(
             heads.map((h) => [h.wxid, h] as const)
         );
-        return contacts.map<Contact>((c) => {
+        return contacts.map<Contact2>((c) => {
             const head = headMap[c.wxid];
             return {
-                ...c.toObject(),
+                ...c,
                 avatar: head?.avatar ?? "",
             };
         });
@@ -172,7 +171,7 @@ export class WechatFerry extends OnebotWechat {
             user_name: c.name!,
             user_displayname: c.name ?? "",
             user_remark: c.remark,
-            "wx.avatar": (c as Contact).avatar ?? "",
+            "wx.avatar": (c as Contact2).avatar ?? "",
         }));
     }
 
@@ -184,12 +183,12 @@ export class WechatFerry extends OnebotWechat {
         return contacts.map((g) => ({
             group_id: g.wxid!,
             group_name: g.name!,
-            "wx.avatar": (g as Contact).avatar,
+            "wx.avatar": (g as Contact2).avatar,
         }));
     }
 
-    getGroupMember(roomId: string, userId: string) {
-        const members = this.bot.getChatRoomMembers(roomId);
+    async getGroupMember(roomId: string, userId: string) {
+        const members = await this.bot.getChatRoomMembers(roomId);
         const userName = members[userId];
         assert(
             userName,
@@ -197,9 +196,9 @@ export class WechatFerry extends OnebotWechat {
         );
         const friend = this.bot.getContact(userId);
         return {
-            wxid: userId,
-            name: userName,
-            ...friend.toObject(),
+            ...friend,
+            wxid: friend?.wxid || userId,
+            name: friend?.name || userName,
         };
     }
 
@@ -210,7 +209,7 @@ export class WechatFerry extends OnebotWechat {
     ): Promise<FriendInfo> {
         const user = groupId
             ? this.bot.getContact(userId) ??
-              this.getGroupMember(groupId, userId)
+              (await this.getGroupMember(groupId, userId))
             : this.bot.getContact(userId);
         assert(
             user,
@@ -229,6 +228,65 @@ export class WechatFerry extends OnebotWechat {
             user_remark: user.remark,
             "wx.avatar": avatar?.avatar,
         };
+    }
+
+    sendTxt(
+        msg: string,
+        receiver: string,
+        mentions?: "all" | string[]
+    ): number {
+        const body = {
+            msg,
+            receiver,
+            aters: "",
+        };
+        if (mentions === "all") {
+            body.msg = `@所有人 ${body.msg}`;
+            body.aters = "notify@all";
+        } else if (Array.isArray(mentions)) {
+            mentions = Array.from(new Set(mentions));
+            const aliasList = mentions.map((mention) =>
+                this.bot.getAliasInChatRoom(receiver, mention)
+            );
+            const mentionTexts = aliasList
+                .map((alias) => `@${alias}`)
+                .join(" ");
+            body.msg = `${mentionTexts} ${body.msg}`;
+            body.aters = mentions.join(",");
+        }
+        return this.bot.sendTxt(body.msg, body.receiver, body.aters);
+    }
+
+    async cacheFile(file: UploadFileAction["req"]): Promise<string> {
+        const id = file.name ?? randomUUID();
+        await this.redis.set(`wechat:cache:file:${id}`, JSON.stringify(file), {
+            EX: 20 * 60,
+        });
+        return id;
+    }
+
+    private async fetchCachedFile(id: string): Promise<FileRef | undefined> {
+        const ret = await this.redis.get(`wechat:cache:file:${id}`);
+        if (!ret) {
+            return undefined;
+        }
+        const payload = JSON.parse(ret) as UploadFileAction["req"];
+        switch (payload.type) {
+            case "url":
+                return new FileRef(payload.url, {
+                    headers: payload.headers,
+                    name: payload.name,
+                });
+            case "data":
+                return new FileRef(Buffer.from(payload.data, "base64"), {
+                    name: payload.name,
+                });
+            case "path":
+                return new FileRef(payload.path, { name: payload.name });
+            default:
+                logger.warn("Cannot upload file:", payload);
+                return undefined;
+        }
     }
 
     async send(
@@ -262,7 +320,7 @@ export class WechatFerry extends OnebotWechat {
                     break;
                 // merge adjacent text message?
                 case "text":
-                    this.bot.sendTxt(
+                    this.sendTxt(
                         message.data.text,
                         groupId ?? userId!,
                         mentions
@@ -270,14 +328,18 @@ export class WechatFerry extends OnebotWechat {
                     // repliedMessage = undefined;
                     break;
                 case "image":
-                case "wx.emoji":
-                    // unable to reply with an image in wechat
-                    this.bot.sendImage(
-                        // todo
-                        message.data.file_id,
-                        groupId ?? userId!
+                case "wx.emoji": {
+                    const ref = await this.fetchCachedFile(
+                        message.data.file_id
                     );
+                    if (ref) {
+                        // unable to reply with an image in wechat
+                        this.bot.sendImage(ref, groupId ?? userId!);
+                    } else {
+                        this.bot.sendTxt("[图片]", groupId ?? userId!);
+                    }
                     break;
+                }
                 case "card":
                     this.bot.sendRichText(message.data, groupId ?? userId!);
                     break;

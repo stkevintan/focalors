@@ -13,30 +13,33 @@ import {
     KnownActionMap,
     PromiseOrNot,
     MessageSegment,
-    UplaodFileParam,
     OnebotWechat,
     TextMessageSegment,
-    toFileBox,
     OnebotWechatToken,
     MessageTarget2,
     SendMessageAction,
     MessageTarget,
+    UploadFileAction,
+    BotStatus,
 } from "@focalors/onebot-protocol";
 import { Configuration } from "./config";
 import { Defer } from "./utils/defer";
 import { logger } from "./logger";
-import path from "path";
 
 const hint = `本次深渊杯角色属性预览：\n\n1 : ['火', '草', '火', '雷']\n2 : ['风', '草', '冰', '冰'] \n3 : ['火', '草', '风', '风']\n4 : ['风', '火', '草', '水']\n5 : ['草', '草', '水', '草']`;
 
 @injectable()
-export class YunzaiClient extends OnebotClient {
+export class YunzaiClient implements OnebotClient {
+    readonly self: BotStatus["self"] = {
+        platform: "wechat",
+        user_id: "gpt",
+    };
+
     private client?: ws;
     constructor(
         @inject(Configuration) protected configuration: Configuration,
         @inject(OnebotWechatToken) protected wechat: OnebotWechat
     ) {
-        super(configuration);
         this.eventSub.setMaxListeners(0);
     }
     private eventSub = new EventEmitter();
@@ -56,14 +59,9 @@ export class YunzaiClient extends OnebotClient {
             bots: [{ online: true, self: this.self }],
         }),
         upload_file: async (file) => {
-            const filename = file.name ?? `${randomUUID()}`;
-            const imagePath = path.resolve(this.cacheDir, filename);
-            const filebox = toFileBox(file, filename);
-            if (filebox) {
-                await filebox.toFile(imagePath, true);
-            }
+            const id = await this.wechat.cacheFile(file);
             return {
-                file_id: imagePath,
+                file_id: id,
             };
         },
         get_self_info: () => ({
@@ -185,7 +183,7 @@ export class YunzaiClient extends OnebotClient {
         });
     }
 
-    override subscribe(
+    subscribe(
         callback: (message: MessageSegment[], target: MessageTarget2) => void
     ): void {
         this.eventSub.on("message", (params: SendMessageAction["req"]) => {
@@ -333,7 +331,7 @@ function dontOutputBase64(req: ActionReq<Action>) {
         return {
             ...req,
             params: {
-                ...(<UplaodFileParam>req.params),
+                ...(<UploadFileAction["req"]>req.params),
                 data: "<base64>",
             },
         };

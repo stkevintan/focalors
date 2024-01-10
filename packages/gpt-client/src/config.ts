@@ -1,14 +1,12 @@
 import fs from "fs";
 import { singleton } from "tsyringe";
-import { Configuration as BaseConfiguration } from "@focalors/onebot-protocol";
 import path from "path";
 import { logger } from "./logger";
 
 const envPath = path.resolve(process.cwd(), ".env");
 
 @singleton()
-export class Configuration extends BaseConfiguration {
-    override readonly botId = "GPT";
+export class Configuration {
     endpoint = process.env["OPENAI_ENDPOINT"];
     deployment = process.env["OPENAI_DEPLOYMENT"];
     apiKey = process.env["OPENAI_APIKEY"];

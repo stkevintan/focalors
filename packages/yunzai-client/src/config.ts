@@ -1,8 +1,7 @@
 import { singleton } from "tsyringe";
-import { Configuration as BaseConfiguration } from "@focalors/onebot-protocol";
 
 @singleton()
-export class Configuration extends BaseConfiguration {
+export class Configuration {
     readonly ws = {
         port: 2536,
         path: "/ComWeChat",
@@ -12,5 +11,4 @@ export class Configuration extends BaseConfiguration {
             return `${this.proto}://${this.host}:${this.port}${this.path}`;
         },
     };
-    override readonly botId = "yunzai";
 }

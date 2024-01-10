@@ -20,7 +20,7 @@ import { ChatCompletionMessageParam } from "openai/resources";
 import { APIError } from "openai/error";
 
 @injectable()
-export class GPTClient extends OnebotClient {
+export class GPTClient implements OnebotClient {
     private eventSub = new EventEmitter();
     private openai: OpenAI;
     private redisClient?: RedisClientType;
@@ -28,7 +28,6 @@ export class GPTClient extends OnebotClient {
         @inject(Configuration) protected configuration: Configuration,
         @inject(OnebotWechatToken) protected wechat: OnebotWechat
     ) {
-        super(configuration);
         this.eventSub.setMaxListeners(0);
         this.openai = new OpenAI({
             baseURL: `${configuration.endpoint}/openai/deployments/${configuration.deployment}`,
@@ -246,6 +245,7 @@ export class GPTClient extends OnebotClient {
     }
     async stop(): Promise<void> {
         await this.configuration.syncToDisk();
+        await this.redisClient?.disconnect();
     }
 }
 

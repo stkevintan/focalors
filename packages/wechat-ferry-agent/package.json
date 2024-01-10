@@ -5,18 +5,9 @@
         "@rustup/nng": "^0.1.2",
         "@swc/helpers": "~0.5.2",
         "fast-xml-parser": "^4.3.2",
-        "file-box": "^1.4.15",
-        "google-protobuf": "^3.21.2"
-    },
-    "scripts": {
-        "postinstall": "powershell ./gen-proto.ps1"
+        "redis": "^4.6.12"
     },
     "type": "commonjs",
     "main": "./src/index.js",
-    "typings": "./src/index.d.ts",
-    "devDependencies": {
-        "grpc-tools": "^1.12.4",
-        "@types/google-protobuf": "^3.15.12",
-        "protoc-gen-ts": "^0.8.7"
-    }
+    "typings": "./src/index.d.ts"
 }

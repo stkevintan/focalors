@@ -239,13 +239,6 @@ export type SendMessageAction = Action<
     boolean
 >;
 
-export interface UplaodFileParam {
-    type: "data";
-    // base64
-    data: string;
-    name: string;
-}
-
 // https://justundertaker.github.io/ComWeChatBotClient/action/group.html#%E8%8E%B7%E5%8F%96%E7%BE%A4%E6%88%90%E5%91%98%E4%BF%A1%E6%81%AF
 export type GetGroupMemberInfoAction = Action<
     "get_group_member_info",
