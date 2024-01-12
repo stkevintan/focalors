@@ -61,14 +61,15 @@ export class WechatFerry implements OnebotWechat {
     subscribe(
         callback: (message: MessageSegment[], from: MessageTarget2) => void
     ) {
-        return this.bot.on((wxmsg) => {
+        return this.bot.on(async (wxmsg) => {
             const message = new WcfMessage(wxmsg);
-            logger.debug(
+            logger.info(
                 `Received Message: ${message.id} [From ${message.sender}]`,
                 `[Type:${message.typeName}]`,
                 message.isGroup ? `[Group]` : "",
                 message.xml
             );
+            logger.debug(`Content:`, message.content);
             const msgSegments: MessageSegment[] = [];
             if (message.isSelf) {
                 logger.warn(`Self message, skip...`);
@@ -80,6 +81,13 @@ export class WechatFerry implements OnebotWechat {
                     data: { user_id: this.self.id },
                 });
             }
+
+            // if (message.type === MessageType.Image) {
+            //     logger.info("Insert message id:", message.id);
+            //     const p = await this.bot.downloadAttach(message.id, message.raw.thumb, message.extra);
+            //     await this.bot.decryptImage(message.extra, 'abdfgh');
+            //     console.log('# path:', p);
+            // }
 
             switch (message.type) {
                 case MessageType.Reply:
@@ -101,7 +109,8 @@ export class WechatFerry implements OnebotWechat {
                                     message.content.msg?.appmsg?.refermsg
                                         ?.chatusr,
                                 message_id:
-                                    message.content.msg?.appmsg?.refermsg?.svrid,
+                                    message.content.msg?.appmsg?.refermsg
+                                        ?.svrid,
                                 message_content:
                                     message.content.msg?.appmsg?.refermsg
                                         ?.content,
@@ -259,14 +268,22 @@ export class WechatFerry implements OnebotWechat {
 
     async cacheFile(file: UploadFileAction["req"]): Promise<string> {
         const id = file.name ?? randomUUID();
-        await this.redis.set(`wechat:cache:file:${id}`, JSON.stringify(file), {
+        const key = createRedisFileKey(id);
+        if (await this.redis.exists(key)) {
+            await this.redis.expire(key, 20 * 60);
+            return id;
+        }
+
+        await this.redis.set(key, JSON.stringify(file), {
             EX: 20 * 60,
         });
+
         return id;
     }
 
     private async fetchCachedFile(id: string): Promise<FileRef | undefined> {
-        const ret = await this.redis.get(`wechat:cache:file:${id}`);
+        const key = createRedisFileKey(id);
+        const ret = await this.redis.get(key);
         if (!ret) {
             return undefined;
         }
@@ -306,48 +323,69 @@ export class WechatFerry implements OnebotWechat {
                       .map((m) => m.data.user_id)
               )
             : [];
-        for (const message of messages) {
-            switch (message.type) {
-                case "reply":
-                    if (groupId) {
-                        mentions.push(message.data.user_id);
+        try {
+            for (const message of messages) {
+                switch (message.type) {
+                    case "reply":
+                        if (groupId) {
+                            mentions.push(message.data.user_id);
+                        }
+                        // repliedMessage = await this.bot.Message.find({
+                        //     id: message.data.message_id,
+                        //     fromId: message.data.user_id,
+                        //     roomId: group.id,
+                        // });
+                        break;
+                    // merge adjacent text message?
+                    case "text":
+                        this.sendTxt(
+                            message.data.text,
+                            groupId ?? userId!,
+                            mentions
+                        );
+                        // repliedMessage = undefined;
+                        break;
+                    case "image":
+                    case "wx.emoji": {
+                        const ref = await this.fetchCachedFile(
+                            message.data.file_id
+                        );
+                        if (ref) {
+                            // unable to reply with an image in wechat
+                            this.bot.sendImage(ref, groupId ?? userId!);
+                        } else {
+                            this.bot.sendTxt("[图片]", groupId ?? userId!);
+                        }
+                        break;
                     }
-                    // repliedMessage = await this.bot.Message.find({
-                    //     id: message.data.message_id,
-                    //     fromId: message.data.user_id,
-                    //     roomId: group.id,
-                    // });
-                    break;
-                // merge adjacent text message?
-                case "text":
-                    this.sendTxt(
-                        message.data.text,
-                        groupId ?? userId!,
-                        mentions
-                    );
-                    // repliedMessage = undefined;
-                    break;
-                case "image":
-                case "wx.emoji": {
-                    const ref = await this.fetchCachedFile(
-                        message.data.file_id
-                    );
-                    if (ref) {
-                        // unable to reply with an image in wechat
-                        this.bot.sendImage(ref, groupId ?? userId!);
-                    } else {
-                        this.bot.sendTxt("[图片]", groupId ?? userId!);
+                    case "file": {
+                        const ref = await this.fetchCachedFile(
+                            message.data.file_id
+                        );
+                        if (ref) {
+                            // unable to reply with an image in wechat
+                            this.bot.sendFile(ref, groupId ?? userId!);
+                        } else {
+                            this.bot.sendTxt("[文件]", groupId ?? userId!);
+                        }
+                        break;
                     }
-                    break;
-                }
-                case "card":
-                    this.bot.sendRichText(message.data, groupId ?? userId!);
-                    break;
+                    case "card":
+                        this.bot.sendRichText(message.data, groupId ?? userId!);
+                        break;
 
-                // case "wx.xml":
-                //     this.bot.sendXML(message.data, groupId ?? userId);
+                    // case "wx.xml":
+                    //     this.bot.sendXML(message.data, groupId ?? userId);
+                }
             }
+            return true;
+        } catch (err) {
+            logger.error(err);
+            return false;
         }
-        return true;
     }
+}
+
+function createRedisFileKey(id: string) {
+    return `wechat:cache:file:${id}`;
 }

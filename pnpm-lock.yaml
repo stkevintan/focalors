@@ -146,8 +146,8 @@ importers:
         specifier: ~0.5.2
         version: 0.5.3
       '@wcferry/core':
-        specifier: ^0.1.3
-        version: 0.1.3
+        specifier: ^0.1.4
+        version: 0.1.4
       fast-xml-parser:
         specifier: ^4.3.2
         version: 4.3.2
@@ -3464,8 +3464,8 @@ packages:
       pretty-format: 29.7.0
     dev: true
 
-  /@wcferry/core@0.1.3:
-    resolution: {integrity: sha512-HATV24bRQK0jkAzPvForGs9OFNnU/x7uoO+a4sOjejPtgY8rNh1rUA3L8W5WzfcfJDtJasrqDLk/LSvB1RBDnw==}
+  /@wcferry/core@0.1.4:
+    resolution: {integrity: sha512-TB5aMm53FPfRr3ZApCuMj/45dWn8XUDiHdAvPQIXafcaQwg9SCak2vHIPep5XwUZAG5rX1R5yFA7Mrj7tdKHsQ==}
     dependencies:
       '@rustup/nng': 0.1.2
       '@swc/helpers': 0.5.3

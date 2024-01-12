@@ -85,6 +85,12 @@ export interface ImageMessageSegment {
         file_id: string;
     };
 }
+export interface FileMessageSegment {
+    type: "file";
+    data: {
+        file_id: string;
+    };
+}
 
 export interface ReplyMessageSegment {
     type: "reply";
@@ -124,6 +130,7 @@ export type MessageSegment =
     | TextMessageSegment
     | MentionMessageSegment
     | ImageMessageSegment
+    | FileMessageSegment
     | ReplyMessageSegment
     | WxEmojiMessageSegment
     | CardMessageSegment
@@ -212,7 +219,7 @@ export interface GroupInfo {
 // https://justundertaker.github.io/ComWeChatBotClient/action/file.html#%E4%B8%8A%E4%BC%A0%E6%96%87%E4%BB%B6
 export type UploadFileAction = Action<
     "upload_file",
-    FileTrait & { name: string; headers?: Record<string, string> },
+    FileTrait & { name?: string; headers?: Record<string, string> },
     { file_id: string }
 >;
 

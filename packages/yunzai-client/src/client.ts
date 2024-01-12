@@ -17,7 +17,6 @@ import {
     TextMessageSegment,
     OnebotWechatToken,
     MessageTarget2,
-    SendMessageAction,
     MessageTarget,
     UploadFileAction,
     BotStatus,
@@ -29,7 +28,7 @@ import { logger } from "./logger";
 const hint = `本次深渊杯角色属性预览：\n\n1 : ['火', '草', '火', '雷']\n2 : ['风', '草', '冰', '冰'] \n3 : ['火', '草', '风', '风']\n4 : ['风', '火', '草', '水']\n5 : ['草', '草', '水', '草']`;
 
 @injectable()
-export class YunzaiClient implements OnebotClient {
+export class YunzaiClient extends OnebotClient {
     readonly self: BotStatus["self"] = {
         platform: "wechat",
         user_id: "gpt",
@@ -40,9 +39,8 @@ export class YunzaiClient implements OnebotClient {
         @inject(Configuration) protected configuration: Configuration,
         @inject(OnebotWechatToken) protected wechat: OnebotWechat
     ) {
-        this.eventSub.setMaxListeners(0);
+        super();
     }
-    private eventSub = new EventEmitter();
 
     private actionHandlers: {
         [K in keyof KnownActionMap]?: (
@@ -76,7 +74,15 @@ export class YunzaiClient implements OnebotClient {
         get_group_member_info: (params) =>
             this.wechat.getFriend(params.user_id, params.group_id),
         send_message: (params) => {
-            this.send(params);
+            this.send(
+                params.message,
+                params.detail_type === "group"
+                    ? {
+                          groupId: params.group_id,
+                          userId: params.user_id,
+                      }
+                    : params.user_id
+            );
             return true;
         },
     };
@@ -183,27 +189,10 @@ export class YunzaiClient implements OnebotClient {
         });
     }
 
-    subscribe(
-        callback: (message: MessageSegment[], target: MessageTarget2) => void
-    ): void {
-        this.eventSub.on("message", (params: SendMessageAction["req"]) => {
-            return callback(
-                params.message,
-                params.detail_type === "group"
-                    ? { groupId: params.group_id, userId: params.user_id }
-                    : params.user_id
-            );
-        });
-    }
-
-    private send(params: SendMessageAction["req"]) {
-        this.eventSub.emit("message", params);
-    }
-
-    async receive(
+    override async recv(
         message: MessageSegment[],
-        from: string | { userId: string; groupId: string }
-    ) {
+        from: MessageTarget2
+    ): Promise<boolean> {
         // try to reconnect if client readystate is close or closing
         if (!this.client || this.client.readyState > ws.OPEN) {
             await this.connect();
@@ -220,18 +209,10 @@ export class YunzaiClient implements OnebotClient {
             logger.warn(`Message without prefix # or *, skip...`);
             return false;
         }
-        const target: MessageTarget =
-            typeof from === "object"
-                ? {
-                      detail_type: "group",
-                      group_id: from.groupId,
-                      user_id: from.userId,
-                  }
-                : { detail_type: "private", user_id: from };
 
         if (/^#\s*随机深渊杯\s*$/.test(segment.data.text)) {
-            this.send({
-                message: [
+            this.send(
+                [
                     {
                         type: "text",
                         data: {
@@ -258,29 +239,27 @@ export class YunzaiClient implements OnebotClient {
                         },
                     },
                 ],
-                ...target,
-            });
+                from
+            );
             return true;
         }
 
         if (/^#\s*随机深渊杯角色属性\s*$/.test(segment.data.text)) {
-            this.send({
-                message: [
-                    {
-                        type: "text",
-                        data: {
-                            text: hint,
-                        },
-                    },
-                ],
-                ...target,
-            });
+            this.sendText(hint, from);
             return true;
         }
 
         if (segment.data.text.startsWith("#!")) {
             segment.data.text = segment.data.text.substring(2);
         }
+        const target: MessageTarget =
+            typeof from === "object"
+                ? {
+                      detail_type: "group",
+                      group_id: from.groupId,
+                      user_id: from.userId,
+                  }
+                : { detail_type: "private", user_id: from };
 
         this.rawSend({
             type: "message",

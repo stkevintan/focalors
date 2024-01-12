@@ -69,7 +69,8 @@ export enum MessageType {
 
 const xmlPattern = /^<(msg|msgsource)>/;
 const xmlParser: XMLParser = new XMLParser({
-    ignoreAttributes: true,
+    ignoreAttributes: false,
+    attributeNamePrefix : "_",
     tagValueProcessor: (tagName, tagValue) => {
         tagValue = stripXMLVer(tagValue);
         if (xmlPattern.test(tagValue)) {
@@ -108,6 +109,9 @@ export class WcfMessage {
     }
     get xml() {
         return this.message.xml;
+    }
+    get extra() {
+        return this.message.raw.extra;
     }
 
     get isGroup() {

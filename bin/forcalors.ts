@@ -7,7 +7,7 @@ import { Program } from "@focalors/wechat-bridge";
 import { WechatFerry } from "@focalors/wechat-ferry-agent";
 import path from "path";
 import { YunzaiClient } from "@focalors/yunzai-client";
-import { GPTClient } from "@focalors/gpt-client";
+import { GPTClient, Dalle3Client } from "@focalors/gpt-client";
 
 const logger = createLogger({
     name: "forcalors",
@@ -17,7 +17,12 @@ const logger = createLogger({
 async function main() {
     try {
         // TODO: start wechat and redis beforehand.
-        const program = Program.create(WechatFerry, YunzaiClient, GPTClient);
+        const program = Program.create(
+            WechatFerry,
+            YunzaiClient,
+            Dalle3Client,
+            GPTClient
+        );
         await program.start();
 
         async function exitHandler() {
@@ -33,7 +38,10 @@ async function main() {
         process.on("SIGUSR2", exitHandler);
 
         // catches uncaught exceptions
-        process.on("uncaughtException", exitHandler);
+        process.on("uncaughtException", (e) => {
+            logger.error("Uncaught exception:", e);
+            exitHandler();
+        });
     } catch (err) {
         logger.error(err);
     }

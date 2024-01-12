@@ -33,7 +33,7 @@ export class Program implements AsyncService {
     async start() {
         this.wechat.subscribe(async (message, target) => {
             for (const client of this.clients) {
-                const ret = await client.receive(message, target);
+                const ret = await client.recv(message, target);
                 if (ret) {
                     return;
                 }

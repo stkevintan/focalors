@@ -1,3 +1,4 @@
+import EventEmitter from "events";
 import { InjectionToken } from "tsyringe";
 import { AsyncService } from "./common";
 import {
@@ -15,12 +16,47 @@ export type AbstractActionMap = Omit<
     "get_status" | "send_message" | "get_version"
 >;
 
-export interface OnebotClient extends AsyncService {
+export abstract class OnebotClient implements AsyncService {
+    private eventSub = new EventEmitter();
+    constructor() {
+        this.eventSub.setMaxListeners(0);
+    }
+    abstract start(): Promise<void>;
+
+    abstract stop(): Promise<void>;
     subscribe(
         callback: (message: MessageSegment[], target: MessageTarget2) => void
-    ): void;
+    ): void {
+        this.eventSub.on(
+            "message",
+            (params: { message: MessageSegment[]; target: MessageTarget2 }) => {
+                callback(params.message, params.target);
+            }
+        );
+    }
 
-    receive(message: MessageSegment[], from: MessageTarget2): Promise<boolean>;
+    protected send(message: MessageSegment[], target: MessageTarget2) {
+        this.eventSub.emit("message", { message, target });
+    }
+
+    protected sendText(text: string, target: MessageTarget2) {
+        if (text) {
+            this.send(
+                [
+                    {
+                        type: "text",
+                        data: { text },
+                    },
+                ],
+                target
+            );
+        }
+    }
+
+    abstract recv(
+        message: MessageSegment[],
+        from: MessageTarget2
+    ): Promise<boolean>;
 }
 
 export const OnebotClientToken: InjectionToken<OnebotClient> = "onebot_client";
