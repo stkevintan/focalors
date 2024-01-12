@@ -1,32 +1,91 @@
 import ws from "ws";
 import { EventEmitter } from "events";
-
-import { inject, injectable, injectAll } from "tsyringe";
+import { inject, injectable } from "tsyringe";
 import { randomInt, randomUUID } from "crypto";
 
-import { TOKENS } from "./tokens";
-import { AsyncService, Protocol } from "./types";
+import {
+    OnebotClient,
+    Event,
+    ActionRes,
+    Action,
+    KnownAction,
+    ActionReq,
+    KnownActionMap,
+    PromiseOrNot,
+    MessageSegment,
+    OnebotWechat,
+    TextMessageSegment,
+    OnebotWechatToken,
+    MessageTarget2,
+    MessageTarget,
+    UploadFileAction,
+    BotStatus,
+} from "@focalors/onebot-protocol";
 import { Configuration } from "./config";
 import { Defer } from "./utils/defer";
 import { logger } from "./logger";
 
-@injectable()
-export class YunzaiClient extends EventEmitter implements AsyncService {
-    private client?: ws;
+const hint = `本次深渊杯角色属性预览：\n\n1 : ['火', '草', '火', '雷']\n2 : ['风', '草', '冰', '冰'] \n3 : ['火', '草', '风', '风']\n4 : ['风', '火', '草', '水']\n5 : ['草', '草', '水', '草']`;
 
+@injectable()
+export class YunzaiClient extends OnebotClient {
+    readonly self: BotStatus["self"] = {
+        platform: "wechat",
+        user_id: "gpt",
+    };
+
+    private client?: ws;
     constructor(
-        @inject(Configuration) private configuration: Configuration,
-        @injectAll(TOKENS.routes)
-        handlers: Protocol.ActionRouteHandler[]
+        @inject(Configuration) protected configuration: Configuration,
+        @inject(OnebotWechatToken) protected wechat: OnebotWechat
     ) {
-        super({
-            captureRejections: true,
-        });
-        this.setMaxListeners(handlers.length * 2);
-        for (const handler of handlers) {
-            this.on(handler.action, this.wrapHandler(handler));
-        }
+        super();
     }
+
+    private actionHandlers: {
+        [K in keyof KnownActionMap]?: (
+            params: KnownActionMap[K]["req"]
+        ) => PromiseOrNot<KnownActionMap[K]["res"]>;
+    } = {
+        get_version: () => ({
+            impl: "ComWechat",
+            version: "0.0.8",
+            onebot_version: "12",
+        }),
+        get_status: () => ({
+            good: true,
+            bots: [{ online: true, self: this.self }],
+        }),
+        upload_file: async (file) => {
+            const id = await this.wechat.cacheFile(file);
+            return {
+                file_id: id,
+            };
+        },
+        get_self_info: () => ({
+            user_id: this.wechat.self.id,
+            user_name: this.wechat.self.name,
+            user_displayname: "",
+        }),
+
+        get_friend_list: () => this.wechat.getFriends(),
+
+        get_group_list: () => this.wechat.getGroups(),
+        get_group_member_info: (params) =>
+            this.wechat.getFriend(params.user_id, params.group_id),
+        send_message: (params) => {
+            this.send(
+                params.message,
+                params.detail_type === "group"
+                    ? {
+                          groupId: params.group_id,
+                          userId: params.user_id,
+                      }
+                    : params.user_id
+            );
+            return true;
+        },
+    };
 
     async start(): Promise<void> {
         await this.connect();
@@ -40,15 +99,10 @@ export class YunzaiClient extends EventEmitter implements AsyncService {
             return this.client;
         }
         this.client = new ws(this.configuration.ws.endpoint);
-        // bind message
         this.client.on("message", this.onClientMessage.bind(this));
         // wait for websocket opened
         await waitFor(this.client, "open");
-        await Promise.all([
-            waitFor(this, "get_group_list"),
-            waitFor(this, "get_friend_list"),
-            this.ping(),
-        ]);
+        this.ping();
         return this.client;
     }
 
@@ -59,81 +113,155 @@ export class YunzaiClient extends EventEmitter implements AsyncService {
         this.client = undefined;
     }
 
-    private async ping() {
-        await this.send({
+    private ping() {
+        this.rawSend({
             id: randomUUID(),
             type: "meta",
             time: Date.now(),
             detail_type: "connect",
             sub_type: "",
-            self: {
-                platform: "wechat",
-                user_id: "",
-            },
+            self: this.self,
             version: {
                 impl: "ComWechat",
                 version: "1.2.0",
                 onebot_version: "12",
             },
         });
+        this.rawSend({
+            id: randomUUID(),
+            type: "meta",
+            time: Date.now(),
+            sub_type: "",
+            detail_type: "status_update",
+            status: {
+                good: true,
+                bots: [
+                    {
+                        online: true,
+                        self: this.self,
+                    },
+                ],
+            },
+        });
     }
 
-    private onClientMessage(data: ws.RawData) {
+    private async onClientMessage(data: ws.RawData) {
         if (!data) {
             logger.warn("empty message received, stop processing");
             return;
         }
-        const req = JSON.parse(String(data)) as Protocol.KnownAction[0];
+        const req = JSON.parse(data.toString("utf8")) as ActionReq<KnownAction>;
         if (null === req || typeof req !== "object") {
             logger.warn("Unexpected message received", req);
         }
-        this.emit(req.action, req);
-    }
+        logger.debug("Received client message:", dontOutputBase64(req));
+        const handler = this.actionHandlers[req.action];
 
-    async send(
-        event: Protocol.Event | Protocol.ActionRes<unknown>
-    ): Promise<void> {
-        if (this.client) {
-            const defer = new Defer<void>();
-            this.client.send(JSON.stringify(event), (err) =>
-                err ? defer.reject(err) : defer.resolve()
+        if (!handler) {
+            logger.warn("No handler registered to event:", req.action);
+            return;
+        }
+        logger.debug(`Starting to execute handler of ${req.action}`);
+        try {
+            const res = await handler(req.params as never);
+            if (res) {
+                this.rawSend({ echo: req.echo, data: res });
+            }
+            logger.debug(
+                `Event handler of ${req.action} executed successfully`
             );
-            await defer.promise;
-        } else {
-            logger.warn("Event failed to send due to client is not init");
+        } catch (err) {
+            logger.debug(`Event handler of ${req.action} failed to execute`);
+            // use logger will cause a problem. not sure why.
+            console.error(err);
         }
     }
 
-    private wrapHandler(handler: Protocol.ActionRouteHandler) {
-        return async (req: Protocol.ActionReq<string>) => {
-            try {
-                logger.debug(`Starting to execute handler of ${req.action}`);
-                const res = await handler.handle(req);
-                if (res) {
-                    await this.send(res);
-                }
-                logger.debug(
-                    `Event handler of ${req.action} executed successfully`
-                );
-            } catch (err) {
-                logger.debug(
-                    `Event handler of ${req.action} failed to execute:`,
-                    err
-                );
+    private rawSend(event: Event | ActionRes<Action>): void {
+        if (!this.client) {
+            logger.error("Cleint: no connection available");
+            return;
+        }
+        this.client.send(JSON.stringify(event), (err: unknown) => {
+            if (err) {
+                logger.error("Client send error", err);
             }
-        };
+        });
     }
 
-    async sendMessageEvent(
-        message: Protocol.MessageSegment[],
-        from: string,
-        to: string | { userId: string; groupId: string }
-    ) {
+    override async recv(
+        message: MessageSegment[],
+        from: MessageTarget2
+    ): Promise<boolean> {
         // try to reconnect if client readystate is close or closing
         if (!this.client || this.client.readyState > ws.OPEN) {
             await this.connect();
         }
-        await this.send({
+        const segment = message.find(
+            (m): m is TextMessageSegment => m.type === "text"
+        );
+        if (!segment) {
+            logger.warn(`No text message, skip...`);
+            return false;
+        }
+
+        if (!/(^\s*[#*])|_MHYUUID/.test(segment.data.text)) {
+            logger.warn(`Message without prefix # or *, skip...`);
+            return false;
+        }
+
+        if (/^#\s*随机深渊杯\s*$/.test(segment.data.text)) {
+            this.send(
+                [
+                    {
+                        type: "text",
+                        data: {
+                            text: "MS Genshin群第三届随机深渊杯活动时间：1月5日20:00 -1月7日23:59，详情请查看公众号：",
+                        },
+                    },
+                    {
+                        type: "card",
+                        data: {
+                            name: "",
+                            digest: "",
+                            title: "Random Abyss",
+                            account: "gh_cabafdd5cf81",
+                            thumburl: `http://mmbiz.qpic.cn/sz_mmbiz_png/nMeboN2UZ1ghzh1zzpN3xrYDUiaENePuH9JiaoBLVJhTfYkBh4Z9icBNVYfqS7ylaBEBhJX22nwLZ5yGL0dSDOFxQ/0?wx_fmt=png`,
+                            // eslint-disable-next-line no-useless-escape
+                            // url: `https://mp.weixin.qq.com/mp/getmasssendmsg?__biz=MzkyMjYyMzY1MA==#wechat_webview_type=1&wechat_redirect","title_key":"__mp_wording__brandinfo_history_massmsg"`
+                            url: `https://mp.weixin.qq.com/mp/getmasssendmsg?__biz=MzkyMjYyMzY1MA==#wechat_webview_type=1&wechat_redirect`,
+                        },
+                    },
+                    {
+                        type: "text",
+                        data: {
+                            text: hint,
+                        },
+                    },
+                ],
+                from
+            );
+            return true;
+        }
+
+        if (/^#\s*随机深渊杯角色属性\s*$/.test(segment.data.text)) {
+            this.sendText(hint, from);
+            return true;
+        }
+
+        if (segment.data.text.startsWith("#!")) {
+            segment.data.text = segment.data.text.substring(2);
+        }
+        const target: MessageTarget =
+            typeof from === "object"
+                ? {
+                      detail_type: "group",
+                      group_id: from.groupId,
+                      user_id: from.userId,
+                  }
+                : { detail_type: "private", user_id: from };
+
+        this.rawSend({
             type: "message",
             id: randomUUID(),
             time: Date.now(),
@@ -144,22 +272,14 @@ export class YunzaiClient extends EventEmitter implements AsyncService {
             ),
             message,
             alt_message: message.map(alt).join(" "),
-            self: {
-                platform: "wechat",
-                user_id: from,
-            },
-            ...(typeof to === "object"
-                ? {
-                      detail_type: "group",
-                      group_id: to.groupId,
-                      user_id: to.userId,
-                  }
-                : { detail_type: "private", user_id: to }),
+            self: this.self,
+            ...target,
         });
+        return true;
     }
 }
 
-function alt(message: Protocol.MessageSegment) {
+function alt(message: MessageSegment) {
     switch (message.type) {
         case "text":
             return message.data.text;
@@ -183,4 +303,17 @@ async function waitFor<T = unknown>(
     const defer = new Defer<T[]>();
     host.once(event, (...args: T[]) => defer.resolve(args));
     return await defer.promise;
+}
+
+function dontOutputBase64(req: ActionReq<Action>) {
+    if (req.action === "upload_file") {
+        return {
+            ...req,
+            params: {
+                ...(<UploadFileAction["req"]>req.params),
+                data: "<base64>",
+            },
+        };
+    }
+    return req;
 }

@@ -1,0 +1,31 @@
+{
+    "compilerOptions": {
+        "target": "ESNext",
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": true,
+        "module": "CommonJS",
+        "moduleResolution": "node",
+        "baseUrl": "./",
+        "declaration": true,
+        "declarationMap": true,
+        "outDir": "./dist",
+        "importHelpers": true,
+        "esModuleInterop": true,
+        "forceConsistentCasingInFileNames": true,
+        "strict": true,
+        "skipLibCheck": true,
+        "paths": {
+            "@focalors/gpt-client": ["packages/gpt-client/src/index.ts"],
+            "@focalors/logger": ["packages/logger/src/index.ts"],
+            "@focalors/onebot-protocol": [
+                "packages/onebot-protocol/src/index.ts"
+            ],
+            "@focalors/wechat-bridge": ["packages/wechat-bridge/src/index.ts"],
+            "@focalors/wechat-ferry-agent": [
+                "packages/wechat-ferry-agent/src/index.ts"
+            ],
+            "@focalors/wechaty-agent": ["packages/wechaty-agent/src/index.ts"],
+            "@focalors/yunzai-client": ["packages/yunzai-client/src/index.ts"]
+        }
+    }
+}

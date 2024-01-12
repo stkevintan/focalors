@@ -1,0 +1,30 @@
+{
+    "name": "wechat-ferry-agent",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "sourceRoot": "packages/wechat-ferry-agent/src",
+    "projectType": "library",
+    "targets": {
+        "build": {
+            "executor": "@nx/js:swc",
+            "outputs": ["{options.outputPath}"],
+            "options": {
+                "outputPath": "dist/packages/wechat-ferry-agent",
+                "main": "packages/wechat-ferry-agent/src/index.ts",
+                "tsConfig": "packages/wechat-ferry-agent/tsconfig.lib.json",
+                "assets": ["packages/wechat-ferry-agent/*.md"]
+            }
+        },
+        "lint": {
+            "executor": "@nx/eslint:lint",
+            "outputs": ["{options.outputFile}"]
+        },
+        "test": {
+            "executor": "@nx/vite:test",
+            "outputs": ["{options.reportsDirectory}"],
+            "options": {
+                "reportsDirectory": "../../coverage/packages/wechat-ferry-agent"
+            }
+        }
+    },
+    "tags": []
+}

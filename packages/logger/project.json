@@ -1,0 +1,30 @@
+{
+    "name": "logger",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "sourceRoot": "packages/logger/src",
+    "projectType": "library",
+    "targets": {
+        "build": {
+            "executor": "@nx/js:swc",
+            "outputs": ["{options.outputPath}"],
+            "options": {
+                "outputPath": "dist/packages/logger",
+                "main": "packages/logger/src/index.ts",
+                "tsConfig": "packages/logger/tsconfig.lib.json",
+                "assets": ["packages/logger/*.md"]
+            }
+        },
+        "lint": {
+            "executor": "@nx/eslint:lint",
+            "outputs": ["{options.outputFile}"]
+        },
+        "test": {
+            "executor": "@nx/vite:test",
+            "outputs": ["{options.reportsDirectory}"],
+            "options": {
+                "reportsDirectory": "../../coverage/packages/logger"
+            }
+        }
+    },
+    "tags": []
+}

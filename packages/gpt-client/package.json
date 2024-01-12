@@ -1,0 +1,12 @@
+{
+    "name": "@focalors/gpt-client",
+    "version": "0.0.1",
+    "dependencies": {
+        "@swc/helpers": "~0.5.2",
+        "openai": "^4.24.1",
+        "redis": "^4.6.12"
+    },
+    "type": "commonjs",
+    "main": "./src/index.js",
+    "typings": "./src/index.d.ts"
+}

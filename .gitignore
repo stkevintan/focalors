@@ -3,3 +3,6 @@ dist/
 external/
 logs/
 .env
+tmp/
+.nx/cache
+target/

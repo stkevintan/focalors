@@ -1,0 +1,14 @@
+{
+    "name": "@focalors/wechat-ferry-agent",
+    "version": "0.0.1",
+    "dependencies": {
+        "@rustup/nng": "^0.1.2",
+        "@swc/helpers": "~0.5.2",
+        "@wcferry/core": "^0.1.4",
+        "fast-xml-parser": "^4.3.2",
+        "redis": "^4.6.12"
+    },
+    "type": "commonjs",
+    "main": "./src/index.js",
+    "typings": "./src/index.d.ts"
+}
