@@ -82,16 +82,17 @@ export class GPTClient extends OnebotClient {
             return true;
         }
 
-        if (
-            !this.accessManager.check(message, target)
-        ) {
+        if (!this.accessManager.check(message, target)) {
             return false;
         }
         // if no one at me or reply me in a group
         if (
-            target.groupId && !message.some(
+            target.groupId &&
+            !message.some(
                 (m) =>
-                    (m.type === "mention" || m.type === "reply") &&
+                    (m.type === "mention" ||
+                        (m.type === "reply" &&
+                            typeof m.data.message_content === "string")) &&
                     m.data.user_id === this.wechat.self.id
             )
         ) {
@@ -132,7 +133,7 @@ export class GPTClient extends OnebotClient {
             const completion = await this.openai.chat.completions.create({
                 messages,
                 model: this.configuration.deployment ?? "",
-                max_tokens: 200
+                max_tokens: 200,
             });
             // for await (const part of completion) {
             //     const text = part.choices[0]?.delta?.content ?? "";

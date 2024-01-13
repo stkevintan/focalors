@@ -5,6 +5,7 @@ import {
     OnebotClient,
     OnebotWechat,
     OnebotWechatToken,
+    ReplyMessageSegment,
 } from "@focalors/onebot-protocol";
 import { inject, injectable } from "tsyringe";
 import { APIError, OpenAI } from "openai";
@@ -12,6 +13,7 @@ import { Configuration } from "./config";
 import { getPrompt } from "./utils";
 import { logger } from "./logger";
 import { AccessManager } from "./access-manager";
+// import { createReadStream, ReadStream } from "fs";
 
 @injectable()
 export class Dalle3Client extends OnebotClient {
@@ -84,6 +86,26 @@ export class Dalle3Client extends OnebotClient {
             }
             return true;
         }
+
+        if (text.startsWith("/ivar")) {
+            try {
+                const reply = message.find((m):m is ReplyMessageSegment => m.type === 'reply');
+                if (!reply) {
+                    this.sendText(`⚠️ 请回复一张图片`, from);
+                    return true;
+                }
+                await this.handleImageVariant(reply, from);
+            } catch (e) {
+                logger.error("handle image error:", e);
+                if (e instanceof APIError) {
+                    this.sendText(
+                        `🚫 糟糕, 接口${e.status}啦! ${e.code ?? ""}`,
+                        from
+                    );
+                }
+            }
+            return true;
+        }
         return false;
     }
 
@@ -119,7 +141,6 @@ export class Dalle3Client extends OnebotClient {
         }
 
         this.sendText("🧑‍🎨 正在作图...", from);
-        this.openai.images.createVariation;
         const ret = await this.openai.images.generate({
             prompt,
             model: this.configuration.dalleDeployment,
@@ -148,4 +169,25 @@ export class Dalle3Client extends OnebotClient {
             this.sendText("糟糕，生成失败", from);
         }
     }
+
+    
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    private async handleImageVariant(reply: ReplyMessageSegment, from: MessageTarget2) {
+        // const svrid = reply.data.message_id;
+        // const p = await this.wechat.downloadImage(svrid);
+        // if (p) {
+        //     // this.sendText(p, from);
+        //     const [stream, discard] = await this.createImageStream(p);
+        //     await this.openai.images.edit({
+        //         image: stream,
+
+        //     })
+        // } else {
+        //     this.sendText('可恶,下载图片失败了', from);
+        // }
+    }
+
+    // private async createImageStream(p: string): Promise<[ReadStream, () => Promise<void>] {
+    //     const r = createReadStream(p);
+    // }
 }

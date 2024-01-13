@@ -76,6 +76,7 @@ export interface OnebotWechat extends AsyncService {
         withAvatar?: boolean
     ): Promise<FriendInfo>;
     cacheFile(file: UploadFileAction["req"]): Promise<string>;
+    downloadImage(msgId: string): Promise<string>;
 }
 
 export const OnebotWechatToken: InjectionToken<OnebotWechat> = "onebot_wechat";

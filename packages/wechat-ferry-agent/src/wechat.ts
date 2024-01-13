@@ -13,8 +13,13 @@ import {
     UploadFileAction,
 } from "@focalors/onebot-protocol";
 import { Contact, UserInfo, Wcferry, FileRef } from "@wcferry/core";
+import { WcfWSServer } from '@wcferry/ws';
 import { randomUUID } from "crypto";
 import { createClient, RedisClientType } from "redis";
+import fs from "fs";
+import os from 'os';
+import path from "path";
+import { ensureDirSync } from "@wcferry/core/src/lib/utils";
 
 export interface Contact2 extends Contact {
     avatar?: string;
@@ -23,6 +28,7 @@ export interface Contact2 extends Contact {
 @singleton()
 export class WechatFerry implements OnebotWechat {
     private bot: Wcferry;
+    private server?: WcfWSServer;
     private redis: RedisClientType;
 
     constructor(
@@ -48,12 +54,17 @@ export class WechatFerry implements OnebotWechat {
 
     async start(): Promise<void> {
         this.bot.start();
+        this.server = new WcfWSServer(this.bot, {
+            port: 8000
+        });
+        ensureDirSync(this.dlCache);
         this.currentUser = this.bot.getUserInfo();
         await this.redis.connect();
         logger.info("wechat-ferry started");
     }
 
     async stop(): Promise<void> {
+        this.server?.close();
         this.bot.stop();
         await this.redis.disconnect();
     }
@@ -305,6 +316,35 @@ export class WechatFerry implements OnebotWechat {
                 return undefined;
         }
     }
+
+    async downloadImage(msgid: string): Promise<string> {
+        const ret = this.bot.dbSqlQuery('MSG0.db', `Select * from MSG WHERE MsgSvrID = "${msgid}"`);
+        const buf = ret?.[0]?.['BytesExtra'];
+        if (!Buffer.isBuffer(buf)) {
+            return '';
+        }
+        const str = buf.toString();
+        const spliter = Buffer.from('1aefbfbd0108', 'hex').toString('utf8');
+        const parts = str.split(spliter);
+        if (parts.length < 1) {
+            return '';
+        }
+
+        const wxid = this.self.id;
+        const index = parts[1].indexOf(wxid);
+        if (index === -1) {
+            return '';
+        }
+        const extra = parts[1].substring(index).replace(/\.dat.*/, '.dat');
+        logger.info("get extra:", extra);
+        const fullextra = path.join(os.homedir(), '\\Documents\\WeChat Files', extra);
+        if (!fs.existsSync(fullextra)) {;
+            return '';
+        }
+        return await this.bot.downloadImage(msgid, fullextra, this.dlCache);
+    }
+
+    private readonly dlCache = path.join(os.tmpdir(), '.wcferry-downloads');
 
     async send(
         messages: MessageSegment[],
