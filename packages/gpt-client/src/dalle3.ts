@@ -13,6 +13,7 @@ import { Configuration } from "./config";
 import { getPrompt } from "./utils";
 import { logger } from "./logger";
 import { AccessManager } from "./access-manager";
+import { ImageGenerateParams } from "openai/resources";
 // import { createReadStream, ReadStream } from "fs";
 
 @injectable()
@@ -66,6 +67,9 @@ export class Dalle3Client extends OnebotClient {
         if (out) {
             this.sendText(out, from);
             return true;
+        }
+        if (!this.accessManager.check(target)) {
+            return false;
         }
 
         const text = getPrompt(message, this.configuration.tokenLimit);
@@ -124,7 +128,10 @@ export class Dalle3Client extends OnebotClient {
         //     prompt = prompt.substring(0, prompt.length - sizeKey.length).trim();
         // }
 
-        const keywords = {} as Record<string, boolean>;
+        const keywords = {
+            hd: false,
+            natural: false,
+        } as Record<string, boolean>;
         const words = prompt.split(/\s+/);
         for (const [i, word] of words.entries()) {
             if (Object.hasOwn(keywords, word)) {
@@ -141,16 +148,18 @@ export class Dalle3Client extends OnebotClient {
         }
 
         this.sendText("🧑‍🎨 正在作图...", from);
-        const ret = await this.openai.images.generate({
-            prompt,
-            model: this.configuration.dalleDeployment,
+        const params: ImageGenerateParams= {
+            prompt: `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS:${prompt}`,
             n: 1,
             quality: keywords["hd"] ? "hd" : "standard",
             response_format: "url",
             // "1024x1024" | "1792x1024" | "1024x1792"
             size: "1024x1024",
-            style: keywords["vivid"] ? "vivid" : "natural",
-        });
+            style: keywords["natural"] ? "natural" : "vivid",
+        };
+        logger.debug("Image generating params:", params);
+
+        const ret = await this.openai.images.generate(params);
         let hasSent = false;
         for (const image of ret.data) {
             if (image.url) {
@@ -164,6 +173,7 @@ export class Dalle3Client extends OnebotClient {
                     from
                 );
             }
+            logger.debug("Image revised_prompt:", image.revised_prompt);
         }
         if (!hasSent) {
             this.sendText("糟糕，生成失败", from);

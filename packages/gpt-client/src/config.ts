@@ -14,7 +14,9 @@ export class Configuration {
     apiVersion = "2023-12-01-preview";
     masterId = process.env["MASTER_ID"];
     redisUri = process.env["REDIS_URI"];
-    tokenLimit = 100;
+    tokenLimit = 1000;
+    // keep last 20 conversations
+    contextLength = 20;
     get allowIdentities(): Set<string> {
         return new Set(
             (process.env["OPENAI_ALLOW_IDENTITIES"] ?? "")

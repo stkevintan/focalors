@@ -13,7 +13,13 @@ import { matchPattern } from "./utils";
 
 @singleton()
 export class AccessManager implements AsyncService {
-    private redisClient?: RedisClientType;
+    private client?: RedisClientType;
+
+    get redisClient(): RedisClientType  {
+        assert(this.client, `Redis client has not started or stopped`);
+        return this.client;
+    }
+
     constructor(
         @inject(Configuration) private configuration: Configuration,
         @inject(OnebotWechatToken) private wechat: OnebotWechat
@@ -22,10 +28,10 @@ export class AccessManager implements AsyncService {
     private stopped = false;
     async start(): Promise<void> {
         assert(this.configuration.redisUri, "redisUri is empty");
-        this.redisClient = createClient({
+        this.client = createClient({
             url: this.configuration.redisUri,
         });
-        await this.redisClient.connect();
+        await this.client.connect();
     }
 
     async stop(): Promise<void> {
@@ -34,7 +40,7 @@ export class AccessManager implements AsyncService {
         }
         this.stopped = true;
         await this.configuration.syncToDisk();
-        await this.redisClient?.disconnect();
+        await this.client?.disconnect();
     }
 
     async manage(
@@ -50,8 +56,8 @@ export class AccessManager implements AsyncService {
         }
 
         logger.debug("Processing admin command:", ret[0]);
-        const cacheKey = `admin:gpt:list`;
-        assert(this.redisClient, "No redis client available");
+        const cacheKey = `gpt:admin:list`;
+        assert(this.client, "No redis client available");
         const verb = ret[1];
         const key = ret?.[2]?.trim();
         switch (verb) {
@@ -70,7 +76,7 @@ export class AccessManager implements AsyncService {
                 ].filter(
                     (c) => !key || c.name.includes(key) || c.id.includes(key)
                 );
-                await this.redisClient.set(cacheKey, JSON.stringify(users), {
+                await this.client.set(cacheKey, JSON.stringify(users), {
                     EX: 10 * 60,
                 });
                 return `Users & Groups:\n${users
@@ -90,7 +96,7 @@ export class AccessManager implements AsyncService {
                 if (index < 1) {
                     return `Invalid index ${index}`;
                 }
-                const resp = await this.redisClient.get(cacheKey);
+                const resp = await this.client.get(cacheKey);
                 if (!resp) {
                     return "Context lost, please re-list contacts";
                 }
@@ -112,7 +118,6 @@ export class AccessManager implements AsyncService {
     }
 
     check(
-        message: MessageSegment[],
         { userId, groupId }: { userId?: string; groupId?: string },
     ) {
         // in group chat

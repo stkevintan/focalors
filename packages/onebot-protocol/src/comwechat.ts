@@ -99,6 +99,7 @@ export interface ReplyMessageSegment {
         message_id: string;
         // extra message
         message_content: unknown;
+        message_type: 'image' | 'text' | 'others'
     };
 }
 

@@ -82,7 +82,7 @@ export class GPTClient extends OnebotClient {
             return true;
         }
 
-        if (!this.accessManager.check(message, target)) {
+        if (!this.accessManager.check(target)) {
             return false;
         }
         // if no one at me or reply me in a group
@@ -92,7 +92,7 @@ export class GPTClient extends OnebotClient {
                 (m) =>
                     (m.type === "mention" ||
                         (m.type === "reply" &&
-                            typeof m.data.message_content === "string")) &&
+                            m.data.message_type === "text")) &&
                     m.data.user_id === this.wechat.self.id
             )
         ) {
@@ -106,50 +106,98 @@ export class GPTClient extends OnebotClient {
         if (!text) {
             return false;
         }
-        const messages: ChatCompletionMessageParam[] = [
-            {
-                role: "user",
-                content: text,
-            },
-        ];
+
+        const key = createConversationKey(target.groupId || target.userId!);
+        const name = target.groupId ? target.userId! : undefined;
+
+        if (/\/gpt\s+clear/.test(text)) {
+            await this.accessManager.redisClient.del(key);
+            this.sendText(`上下文已清除`, from);
+            return true;
+        }
+        const prompt = [text];
+        // const messages: ChatCompletionMessageParam[] = [
+        //     {
+        //         role: "user",
+        //         content: text,
+        //     },
+        // ];
         // if the message was replied, add the reply content into context
         const contextSegment = message.find(
             (m): m is ReplyMessageSegment => m.type === "reply"
         );
+
         const context = contextSegment?.data.message_content;
 
-        if (typeof context === "string") {
+        if (contextSegment?.data.message_type === "text" && typeof context === 'string') {
             const content = stripAt(context)
                 .trim()
                 .substring(0, this.configuration.tokenLimit);
-            messages.unshift({
-                role: "assistant",
-                content,
-            });
+            prompt.unshift(content);
             logger.debug(`Prepended assistant context:`, content);
         }
 
         try {
             const completion = await this.openai.chat.completions.create({
-                messages,
+                messages: await this.createConversation(
+                    prompt.join("\n"),
+                    key,
+                    name
+                ),
                 model: this.configuration.deployment ?? "",
-                max_tokens: 200,
             });
-            // for await (const part of completion) {
-            //     const text = part.choices[0]?.delta?.content ?? "";
-            //     this.send({ message: text, target: from });
-            // }
-            this.sendText(completion.choices[0]?.message.content ?? "", from);
+            const assistant = completion.choices[0]?.message.content;
+            assert(assistant, `Assistant returned with empty`);
+            await this.pushMessageCache(key, {
+                role: "assistant",
+                content: assistant,
+            });
+            this.sendText(assistant, from);
             logger.debug(`Completion processed`);
             return true;
         } catch (err) {
             if (err instanceof APIError) {
-                await this.sendErrorImage(from);
+                this.sendText(
+                    `🚫 糟糕, 接口${err.status}啦! ${err.code ?? ""}`,
+                    from
+                );
                 logger.error(`Completion API error:`, err);
                 return true;
             }
             logger.error(`Completion failed:`, err);
             return false;
+        }
+    }
+
+    private async createConversation(
+        prompt: string,
+        key: string,
+        name?: string
+    ): Promise<ChatCompletionMessageParam[]> {
+        const resp = await this.accessManager.redisClient.lRange(
+            key,
+            0,
+            this.configuration.contextLength
+        );
+        const conversations = resp.map((p) =>
+            JSON.parse(p)
+        ) as ChatCompletionMessageParam[];
+        conversations.unshift({ role: "user", name, content: prompt });
+        await this.pushMessageCache(key, conversations[0]);
+        return conversations.reverse();
+    }
+
+    private async pushMessageCache(
+        key: string,
+        entry: ChatCompletionMessageParam
+    ): Promise<void> {
+        await this.accessManager.redisClient.lPush(key, JSON.stringify(entry));
+        if (Math.random() > 0.5) {
+            await this.accessManager.redisClient.lTrim(
+                key,
+                0,
+                this.configuration.contextLength
+            );
         }
     }
 
@@ -232,4 +280,8 @@ function stripAt(text: string): string {
         return text;
     }
     return text.replace(/@\S+/g, "");
+}
+
+function createConversationKey(id: string) {
+    return `gpt:prompt:${id}`;
 }
