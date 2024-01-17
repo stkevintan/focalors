@@ -154,6 +154,8 @@ export class GPTClient extends OnebotClient {
                     name
                 ),
                 model: this.configuration.deployment ?? "",
+                // how many tokens gpt can return
+                max_tokens: this.configuration.tokenLimit,
             });
             const assistant = completion.choices[0]?.message.content;
             assert(assistant, `Assistant returned with empty`);

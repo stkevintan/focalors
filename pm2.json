@@ -5,6 +5,7 @@
             "script": "./bin/forcalors.ts",
             "max_memory_restart": "512M",
             "restart_delay": 10000,
+            "kill_timeout": 10000,
             "interpreter": "node",
             "interpreterArgs": "--import tsx"
         }

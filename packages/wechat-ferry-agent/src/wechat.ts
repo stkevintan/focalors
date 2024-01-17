@@ -10,12 +10,12 @@ import {
     MessageSegment,
     MessageTarget2,
     OnebotWechat,
+    RedisClient,
     UploadFileAction,
 } from "@focalors/onebot-protocol";
 import { Contact, UserInfo, Wcferry, FileRef } from "@wcferry/core";
 import { WcfWSServer } from "@wcferry/ws";
 import { randomUUID } from "crypto";
-import { createClient, RedisClientType } from "redis";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -29,14 +29,12 @@ export interface Contact2 extends Contact {
 export class WechatFerry implements OnebotWechat {
     private bot: Wcferry;
     private server?: WcfWSServer;
-    private redis: RedisClientType;
 
     constructor(
-        @inject(WcfConfiguration)
-        protected configuration: WcfConfiguration
+        @inject(WcfConfiguration) protected configuration: WcfConfiguration,
+        @inject(RedisClient) protected redis: RedisClient
     ) {
         this.bot = new Wcferry(this.configuration.wcf);
-        this.redis = createClient({ url: this.configuration.redisUri });
     }
 
     private currentUser?: UserInfo;
@@ -59,14 +57,12 @@ export class WechatFerry implements OnebotWechat {
         });
         ensureDirSync(this.dlCache);
         this.currentUser = this.bot.getUserInfo();
-        await this.redis.connect();
         logger.info("wechat-ferry started");
     }
 
     async stop(): Promise<void> {
         this.server?.close();
         this.bot.stop();
-        await this.redis.disconnect();
     }
 
     subscribe(
@@ -296,11 +292,10 @@ export class WechatFerry implements OnebotWechat {
 
     private async fetchCachedFile(id: string): Promise<FileRef | undefined> {
         const key = createRedisFileKey(id);
-        const ret = await this.redis.get(key);
-        if (!ret) {
+        const payload = await this.redis.get<UploadFileAction["req"]>(key);
+        if (!payload) {
             return undefined;
         }
-        const payload = JSON.parse(ret) as UploadFileAction["req"];
         switch (payload.type) {
             case "url":
                 return new FileRef(payload.url, {

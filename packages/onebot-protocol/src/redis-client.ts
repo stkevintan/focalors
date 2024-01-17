@@ -6,6 +6,14 @@ import assert from "assert";
 
 @singleton()
 export class RedisClient implements AsyncService {
+    async expire(key: string, ts: number) {
+        return this.client.expire(key, ts);
+    }
+
+    async exists(key: string) {
+        return this.client.exists(key);
+    }
+
     async del(key: string) {
         return await this.client.del(key);
     }
