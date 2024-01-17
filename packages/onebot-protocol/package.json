@@ -3,7 +3,8 @@
     "version": "0.0.1",
     "dependencies": {
         "@swc/helpers": "~0.5.2",
-        "file-box": "^1.4.15"
+        "file-box": "^1.4.15",
+        "redis": "^4.6.12"
     },
     "type": "commonjs",
     "main": "./src/index.js",

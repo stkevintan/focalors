@@ -1,11 +1,14 @@
 import path from "path";
 import {
+    AccessManager,
     expandTarget,
+    injectAccessManager,
     MessageSegment,
     MessageTarget2,
     OnebotClient,
     OnebotWechat,
     OnebotWechatToken,
+    RedisClient,
     ReplyMessageSegment,
     TextMessageSegment,
 } from "@focalors/onebot-protocol";
@@ -18,7 +21,6 @@ import assert from "assert";
 import { ChatCompletionMessageParam } from "openai/resources";
 import { APIError } from "openai/error";
 import { randomUUID } from "crypto";
-import { AccessManager } from "./access-manager";
 import { getPrompt } from "./utils";
 
 @injectable()
@@ -27,7 +29,8 @@ export class GPTClient extends OnebotClient {
     constructor(
         @inject(Configuration) protected configuration: Configuration,
         @inject(OnebotWechatToken) protected wechat: OnebotWechat,
-        @inject(AccessManager) protected accessManager: AccessManager
+        @injectAccessManager("gpt") protected accessManager: AccessManager,
+        @inject(RedisClient) protected redis: RedisClient
     ) {
         super();
         this.openai = new OpenAI({
@@ -82,9 +85,18 @@ export class GPTClient extends OnebotClient {
             return true;
         }
 
-        if (!this.accessManager.check(target)) {
+        if (
+            !(await this.accessManager.check(target.groupId || target.userId!))
+        ) {
             return false;
         }
+        const key = createConversationKey(target.groupId || target.userId!);
+        if (matchPattern(message, /\/gpt\s+clear/)) {
+            await this.redis.del(key);
+            this.sendText(`上下文已清除`, from);
+            return true;
+        }
+
         // if no one at me or reply me in a group
         if (
             target.groupId &&
@@ -107,14 +119,8 @@ export class GPTClient extends OnebotClient {
             return false;
         }
 
-        const key = createConversationKey(target.groupId || target.userId!);
         const name = target.groupId ? target.userId! : undefined;
 
-        if (/\/gpt\s+clear/.test(text)) {
-            await this.accessManager.redisClient.del(key);
-            this.sendText(`上下文已清除`, from);
-            return true;
-        }
         const prompt = [text];
         // const messages: ChatCompletionMessageParam[] = [
         //     {
@@ -129,7 +135,10 @@ export class GPTClient extends OnebotClient {
 
         const context = contextSegment?.data.message_content;
 
-        if (contextSegment?.data.message_type === "text" && typeof context === 'string') {
+        if (
+            contextSegment?.data.message_type === "text" &&
+            typeof context === "string"
+        ) {
             const content = stripAt(context)
                 .trim()
                 .substring(0, this.configuration.tokenLimit);
@@ -174,7 +183,7 @@ export class GPTClient extends OnebotClient {
         key: string,
         name?: string
     ): Promise<ChatCompletionMessageParam[]> {
-        const resp = await this.accessManager.redisClient.lRange(
+        const resp = await this.redis.slice(
             key,
             0,
             this.configuration.contextLength
@@ -191,13 +200,9 @@ export class GPTClient extends OnebotClient {
         key: string,
         entry: ChatCompletionMessageParam
     ): Promise<void> {
-        await this.accessManager.redisClient.lPush(key, JSON.stringify(entry));
+        await this.redis.unshift(key, entry);
         if (Math.random() > 0.5) {
-            await this.accessManager.redisClient.lTrim(
-                key,
-                0,
-                this.configuration.contextLength
-            );
+            await this.redis.lTrim(key, 0, this.configuration.contextLength);
         }
     }
 
@@ -260,12 +265,8 @@ export class GPTClient extends OnebotClient {
 
     async start(): Promise<void> {
         assert(this.configuration.apiKey, "OPENAI_APIKEY is empty");
-        await this.accessManager.start();
     }
-    async stop(): Promise<void> {
-        await this.configuration.syncToDisk();
-        await this.accessManager.stop();
-    }
+    async stop(): Promise<void> {}
 }
 
 function matchPattern(message: MessageSegment[], pattern: RegExp) {

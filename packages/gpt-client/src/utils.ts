@@ -21,9 +21,3 @@ export function getPrompt(message: MessageSegment[], tokenLimit?: number) {
     return text;
 }
 
-export function matchPattern(message: MessageSegment[], pattern: RegExp) {
-    const first = message.find(
-        (m): m is TextMessageSegment => m.type === "text"
-    );
-    return first?.data.text.match?.(pattern);
-}

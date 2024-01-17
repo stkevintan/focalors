@@ -6,6 +6,7 @@ import {
     OnebotClientToken,
     OnebotWechat,
     OnebotWechatToken,
+    RedisClient,
 } from "@focalors/onebot-protocol";
 
 import { logger } from "./logger";
@@ -14,7 +15,8 @@ import { logger } from "./logger";
 export class Program implements AsyncService {
     constructor(
         @inject(OnebotWechatToken) private wechat: OnebotWechat,
-        @injectAll(OnebotClientToken) private clients: OnebotClient[]
+        @injectAll(OnebotClientToken) private clients: OnebotClient[],
+        @inject(RedisClient) private redis: RedisClient
     ) {}
 
     static create(
@@ -31,6 +33,7 @@ export class Program implements AsyncService {
     }
 
     async start() {
+        await this.redis.start();
         this.wechat.subscribe(async (message, target) => {
             for (const client of this.clients) {
                 const ret = await client.recv(message, target);
@@ -58,7 +61,8 @@ export class Program implements AsyncService {
         // swallow the error since we must ensure all the stop functions will be called.
         await Promise.allSettled([
             ...this.clients.map((client) => client.stop()),
-            this.wechat.stop(),
         ]);
+        await this.wechat.stop().catch();
+        await this.redis.stop().catch();
     }
 }

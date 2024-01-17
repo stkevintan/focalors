@@ -2,9 +2,11 @@
     "apps": [
         {
             "name": "Focalors",
-            "script": "./packages/wechat-bridge/bin/focalors-wechat.js",
+            "script": "./bin/forcalors.ts",
             "max_memory_restart": "512M",
-            "restart_delay": 60000
+            "restart_delay": 10000,
+            "interpreter": "node",
+            "interpreterArgs": "--import tsx"
         }
     ]
 }
