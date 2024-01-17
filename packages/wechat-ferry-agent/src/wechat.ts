@@ -283,7 +283,7 @@ export class WechatFerry implements OnebotWechat {
             return id;
         }
 
-        await this.redis.set(key, JSON.stringify(file), {
+        await this.redis.set(key, file, {
             EX: 20 * 60,
         });
 
