@@ -25,10 +25,11 @@ async function main() {
             GPTClient
         );
         await program.start();
+        process.send?.('ready');
 
         async function exitHandler() {
             logger.info("\nGracefully shutting down...");
-            await program.stop().finally(() => process.exit());
+            await program.stop().finally(() => process.exit(0));
         }
 
         // catches ctrl+c event
@@ -41,7 +42,14 @@ async function main() {
         // catches uncaught exceptions
         process.on("uncaughtException", (e) => {
             logger.error("Uncaught exception:", e);
-            exitHandler();
+            void exitHandler();
+        });
+
+        // Windows graceful stop
+        process.on("message", function (msg) {
+            if (msg == "shutdown") {
+                void exitHandler();
+            }
         });
     } catch (err) {
         logger.error(err);
