@@ -17,10 +17,10 @@ const logger = createLogger({
 
 async function main() {
     try {
-        // TODO: start wechat and redis beforehand.
+
         const program = Program.create(
-            WechatFerry,
-            YunzaiClient,
+            WechatFerry, // <--- master
+            YunzaiClient, // <--- slaves
             Dalle3Client,
             GPTClient
         );
