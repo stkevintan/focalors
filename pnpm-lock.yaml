@@ -147,7 +147,7 @@ importers:
         version: 0.5.3
       '@wcferry/core':
         specifier: ^0.1.4
-        version: 0.1.4
+        version: link:../../../wcferry/dist/packages/core
       fast-xml-parser:
         specifier: ^4.3.2
         version: 4.3.2
@@ -3457,18 +3457,6 @@ packages:
       loupe: 2.3.7
       pretty-format: 29.7.0
     dev: true
-
-  /@wcferry/core@0.1.4:
-    resolution: {integrity: sha512-TB5aMm53FPfRr3ZApCuMj/45dWn8XUDiHdAvPQIXafcaQwg9SCak2vHIPep5XwUZAG5rX1R5yFA7Mrj7tdKHsQ==}
-    dependencies:
-      '@rustup/nng': 0.1.2
-      '@swc/helpers': 0.5.3
-      debug: 4.3.4
-      google-protobuf: 3.21.2
-      mime: 3.0.0
-    transitivePeerDependencies:
-      - supports-color
-    dev: false
 
   /@yarnpkg/lockfile@1.1.0:
     resolution: {integrity: sha512-GpSwvyXOcOOlV70vbnzjj4fW5xW/FdUF6nQEt1ENy7m4ZCczi1+/buVUPAqmGfqznsORNFzUMjctTIp8a9tuCQ==}

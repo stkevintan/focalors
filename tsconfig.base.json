@@ -15,6 +15,7 @@
         "strict": true,
         "skipLibCheck": true,
         "paths": {
+            "@focalors/custom-client": ["packages/custom-client/src/index.ts"],
             "@focalors/gpt-client": ["packages/gpt-client/src/index.ts"],
             "@focalors/logger": ["packages/logger/src/index.ts"],
             "@focalors/onebot-protocol": [

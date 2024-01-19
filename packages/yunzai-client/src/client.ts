@@ -25,7 +25,6 @@ import { Configuration } from "./config";
 import { Defer } from "./utils/defer";
 import { logger } from "./logger";
 
-const hint = `本次深渊杯角色属性预览：\n\n1 : ['火', '草', '火', '雷']\n2 : ['风', '草', '冰', '冰'] \n3 : ['火', '草', '风', '风']\n4 : ['风', '火', '草', '水']\n5 : ['草', '草', '水', '草']`;
 
 @injectable()
 export class YunzaiClient extends OnebotClient {
@@ -208,45 +207,6 @@ export class YunzaiClient extends OnebotClient {
         if (!/(^\s*[#*])|_MHYUUID/.test(segment.data.text)) {
             logger.warn(`Message without prefix # or *, skip...`);
             return false;
-        }
-
-        if (/^#\s*随机深渊杯\s*$/.test(segment.data.text)) {
-            this.send(
-                [
-                    {
-                        type: "text",
-                        data: {
-                            text: "MS Genshin群第三届随机深渊杯活动时间：1月5日20:00 -1月7日23:59，详情请查看公众号：",
-                        },
-                    },
-                    {
-                        type: "card",
-                        data: {
-                            name: "",
-                            digest: "",
-                            title: "Random Abyss",
-                            account: "gh_cabafdd5cf81",
-                            thumburl: `http://mmbiz.qpic.cn/sz_mmbiz_png/nMeboN2UZ1ghzh1zzpN3xrYDUiaENePuH9JiaoBLVJhTfYkBh4Z9icBNVYfqS7ylaBEBhJX22nwLZ5yGL0dSDOFxQ/0?wx_fmt=png`,
-                            // eslint-disable-next-line no-useless-escape
-                            // url: `https://mp.weixin.qq.com/mp/getmasssendmsg?__biz=MzkyMjYyMzY1MA==#wechat_webview_type=1&wechat_redirect","title_key":"__mp_wording__brandinfo_history_massmsg"`
-                            url: `https://mp.weixin.qq.com/mp/getmasssendmsg?__biz=MzkyMjYyMzY1MA==#wechat_webview_type=1&wechat_redirect`,
-                        },
-                    },
-                    {
-                        type: "text",
-                        data: {
-                            text: hint,
-                        },
-                    },
-                ],
-                from
-            );
-            return true;
-        }
-
-        if (/^#\s*随机深渊杯角色属性\s*$/.test(segment.data.text)) {
-            this.sendText(hint, from);
-            return true;
         }
 
         if (segment.data.text.startsWith("#!")) {
