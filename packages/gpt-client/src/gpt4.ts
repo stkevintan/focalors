@@ -1,11 +1,14 @@
 import path from "path";
 import {
+    AccessManager,
     expandTarget,
+    injectAccessManager,
     MessageSegment,
     MessageTarget2,
     OnebotClient,
     OnebotWechat,
     OnebotWechatToken,
+    RedisClient,
     ReplyMessageSegment,
     TextMessageSegment,
 } from "@focalors/onebot-protocol";
@@ -18,7 +21,6 @@ import assert from "assert";
 import { ChatCompletionMessageParam } from "openai/resources";
 import { APIError } from "openai/error";
 import { randomUUID } from "crypto";
-import { AccessManager } from "./access-manager";
 import { getPrompt } from "./utils";
 
 @injectable()
@@ -27,7 +29,8 @@ export class GPTClient extends OnebotClient {
     constructor(
         @inject(Configuration) protected configuration: Configuration,
         @inject(OnebotWechatToken) protected wechat: OnebotWechat,
-        @inject(AccessManager) protected accessManager: AccessManager
+        @injectAccessManager("gpt") protected accessManager: AccessManager,
+        @inject(RedisClient) protected redis: RedisClient
     ) {
         super();
         this.openai = new OpenAI({
@@ -83,15 +86,25 @@ export class GPTClient extends OnebotClient {
         }
 
         if (
-            !this.accessManager.check(message, target)
+            !(await this.accessManager.check(target.groupId || target.userId!))
         ) {
             return false;
         }
+        const key = createConversationKey(target.groupId || target.userId!);
+        if (matchPattern(message, /\/gpt\s+clear/)) {
+            await this.redis.del(key);
+            this.sendText(`上下文已清除`, from);
+            return true;
+        }
+
         // if no one at me or reply me in a group
         if (
-            target.groupId && !message.some(
+            target.groupId &&
+            !message.some(
                 (m) =>
-                    (m.type === "mention" || m.type === "reply") &&
+                    (m.type === "mention" ||
+                        (m.type === "reply" &&
+                            m.data.message_type === "text")) &&
                     m.data.user_id === this.wechat.self.id
             )
         ) {
@@ -105,50 +118,93 @@ export class GPTClient extends OnebotClient {
         if (!text) {
             return false;
         }
-        const messages: ChatCompletionMessageParam[] = [
-            {
-                role: "user",
-                content: text,
-            },
-        ];
+
+        const name = target.groupId ? target.userId! : undefined;
+
+        const prompt = [text];
+        // const messages: ChatCompletionMessageParam[] = [
+        //     {
+        //         role: "user",
+        //         content: text,
+        //     },
+        // ];
         // if the message was replied, add the reply content into context
         const contextSegment = message.find(
             (m): m is ReplyMessageSegment => m.type === "reply"
         );
+
         const context = contextSegment?.data.message_content;
 
-        if (typeof context === "string") {
+        if (
+            contextSegment?.data.message_type === "text" &&
+            typeof context === "string"
+        ) {
             const content = stripAt(context)
                 .trim()
                 .substring(0, this.configuration.tokenLimit);
-            messages.unshift({
-                role: "assistant",
-                content,
-            });
+            prompt.unshift(content);
             logger.debug(`Prepended assistant context:`, content);
         }
 
         try {
             const completion = await this.openai.chat.completions.create({
-                messages,
+                messages: await this.createConversation(
+                    prompt.join("\n"),
+                    key,
+                    name
+                ),
                 model: this.configuration.deployment ?? "",
-                max_tokens: 200
+                // how many tokens gpt can return
+                max_tokens: this.configuration.tokenLimit,
             });
-            // for await (const part of completion) {
-            //     const text = part.choices[0]?.delta?.content ?? "";
-            //     this.send({ message: text, target: from });
-            // }
-            this.sendText(completion.choices[0]?.message.content ?? "", from);
+            const assistant = completion.choices[0]?.message.content;
+            assert(assistant, `Assistant returned with empty`);
+            await this.pushMessageCache(key, {
+                role: "assistant",
+                content: assistant,
+            });
+            this.sendText(assistant, from);
             logger.debug(`Completion processed`);
             return true;
         } catch (err) {
             if (err instanceof APIError) {
-                await this.sendErrorImage(from);
+                this.sendText(
+                    `🚫 糟糕, 接口${err.status}啦! ${err.code ?? ""}`,
+                    from
+                );
                 logger.error(`Completion API error:`, err);
                 return true;
             }
             logger.error(`Completion failed:`, err);
             return false;
+        }
+    }
+
+    private async createConversation(
+        prompt: string,
+        key: string,
+        name?: string
+    ): Promise<ChatCompletionMessageParam[]> {
+        const resp = await this.redis.slice(
+            key,
+            0,
+            this.configuration.contextLength
+        );
+        const conversations = resp.map((p) =>
+            JSON.parse(p)
+        ) as ChatCompletionMessageParam[];
+        conversations.unshift({ role: "user", name, content: prompt });
+        await this.pushMessageCache(key, conversations[0]);
+        return conversations.reverse();
+    }
+
+    private async pushMessageCache(
+        key: string,
+        entry: ChatCompletionMessageParam
+    ): Promise<void> {
+        await this.redis.unshift(key, entry);
+        if (Math.random() > 0.5) {
+            await this.redis.lTrim(key, 0, this.configuration.contextLength);
         }
     }
 
@@ -211,12 +267,8 @@ export class GPTClient extends OnebotClient {
 
     async start(): Promise<void> {
         assert(this.configuration.apiKey, "OPENAI_APIKEY is empty");
-        await this.accessManager.start();
     }
-    async stop(): Promise<void> {
-        await this.configuration.syncToDisk();
-        await this.accessManager.stop();
-    }
+    async stop(): Promise<void> {}
 }
 
 function matchPattern(message: MessageSegment[], pattern: RegExp) {
@@ -231,4 +283,8 @@ function stripAt(text: string): string {
         return text;
     }
     return text.replace(/@\S+/g, "");
+}
+
+function createConversationKey(id: string) {
+    return `gpt:prompt:${id}`;
 }

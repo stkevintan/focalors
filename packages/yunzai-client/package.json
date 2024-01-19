@@ -3,7 +3,6 @@
     "version": "0.0.1",
     "dependencies": {
         "@swc/helpers": "~0.5.2",
-        "file-box": "^1.4.15",
         "ws": "^8.16.0"
     },
     "devDependencies": {

@@ -99,6 +99,7 @@ export interface ReplyMessageSegment {
         message_id: string;
         // extra message
         message_content: unknown;
+        message_type: 'image' | 'text' | 'others'
     };
 }
 
@@ -281,3 +282,10 @@ export type KnownActionMap = UnionToMap<KnownAction>;
 export type Test<T extends Action> = {
     [K in T["name"]]: T extends Action<K, infer R> ? R : never;
 };
+
+export function matchPattern(message: MessageSegment[], pattern: RegExp) {
+    const first = message.find(
+        (m): m is TextMessageSegment => m.type === "text"
+    );
+    return first?.data.text.match?.(pattern);
+}

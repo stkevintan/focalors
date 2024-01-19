@@ -3,7 +3,7 @@
     "private": true,
     "version": "0.0.0",
     "scripts": {
-        "start": "tsx bin/forcalors.ts"
+        "start": "tsx bin/focalors.ts"
     },
     "devDependencies": {
         "@nx/eslint": "17.2.8",
@@ -32,8 +32,8 @@
     },
     "dependencies": {
         "@swc/helpers": "~0.5.2",
-        "tsyringe": "^4.7.0",
         "dotenv": "^16.0.3",
-        "reflect-metadata": "^0.1.13"
+        "reflect-metadata": "^0.1.13",
+        "tsyringe": "^4.7.0"
     }
 }

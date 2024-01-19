@@ -10,11 +10,16 @@ import {
     MessageSegment,
     MessageTarget2,
     OnebotWechat,
+    RedisClient,
     UploadFileAction,
 } from "@focalors/onebot-protocol";
 import { Contact, UserInfo, Wcferry, FileRef } from "@wcferry/core";
+import { WcfWSServer } from "@wcferry/ws";
 import { randomUUID } from "crypto";
-import { createClient, RedisClientType } from "redis";
+import fs from "fs";
+import os from "os";
+import path from "path";
+import { ensureDirSync } from "@wcferry/core/src/lib/utils";
 
 export interface Contact2 extends Contact {
     avatar?: string;
@@ -23,14 +28,13 @@ export interface Contact2 extends Contact {
 @singleton()
 export class WechatFerry implements OnebotWechat {
     private bot: Wcferry;
-    private redis: RedisClientType;
+    private server?: WcfWSServer;
 
     constructor(
-        @inject(WcfConfiguration)
-        protected configuration: WcfConfiguration
+        @inject(WcfConfiguration) protected configuration: WcfConfiguration,
+        @inject(RedisClient) protected redis: RedisClient
     ) {
         this.bot = new Wcferry(this.configuration.wcf);
-        this.redis = createClient({ url: this.configuration.redisUri });
     }
 
     private currentUser?: UserInfo;
@@ -48,14 +52,17 @@ export class WechatFerry implements OnebotWechat {
 
     async start(): Promise<void> {
         this.bot.start();
+        this.server = new WcfWSServer(this.bot, {
+            port: 8000,
+        });
+        ensureDirSync(this.dlCache);
         this.currentUser = this.bot.getUserInfo();
-        await this.redis.connect();
         logger.info("wechat-ferry started");
     }
 
     async stop(): Promise<void> {
+        this.server?.close();
         this.bot.stop();
-        await this.redis.disconnect();
     }
 
     subscribe(
@@ -90,7 +97,7 @@ export class WechatFerry implements OnebotWechat {
             // }
 
             switch (message.type) {
-                case MessageType.Reply:
+                case MessageType.Reply: {
                     /*
                     refermsg: {
                         type: 1,
@@ -101,19 +108,20 @@ export class WechatFerry implements OnebotWechat {
                         content: '< text >'
                     }
                     */
+                    const refer = message.content.msg?.appmsg?.refermsg;
                     msgSegments.push(
                         {
                             type: "reply",
                             data: {
-                                user_id:
-                                    message.content.msg?.appmsg?.refermsg
-                                        ?.chatusr,
-                                message_id:
-                                    message.content.msg?.appmsg?.refermsg
-                                        ?.svrid,
-                                message_content:
-                                    message.content.msg?.appmsg?.refermsg
-                                        ?.content,
+                                user_id: refer?.chatusr,
+                                message_id: refer?.svrid,
+                                message_content: refer?.content,
+                                message_type:
+                                    refer?.type === MessageType.Image
+                                        ? "image"
+                                        : refer?.type === MessageType.Text
+                                        ? "text"
+                                        : "others",
                             },
                         },
                         {
@@ -122,6 +130,7 @@ export class WechatFerry implements OnebotWechat {
                         }
                     );
                     break;
+                }
                 case MessageType.Text:
                     msgSegments.push({
                         type: "text",
@@ -274,7 +283,7 @@ export class WechatFerry implements OnebotWechat {
             return id;
         }
 
-        await this.redis.set(key, JSON.stringify(file), {
+        await this.redis.set(key, file, {
             EX: 20 * 60,
         });
 
@@ -283,11 +292,10 @@ export class WechatFerry implements OnebotWechat {
 
     private async fetchCachedFile(id: string): Promise<FileRef | undefined> {
         const key = createRedisFileKey(id);
-        const ret = await this.redis.get(key);
-        if (!ret) {
+        const payload = await this.redis.get<UploadFileAction["req"]>(key);
+        if (!payload) {
             return undefined;
         }
-        const payload = JSON.parse(ret) as UploadFileAction["req"];
         switch (payload.type) {
             case "url":
                 return new FileRef(payload.url, {
@@ -305,6 +313,42 @@ export class WechatFerry implements OnebotWechat {
                 return undefined;
         }
     }
+
+    async downloadImage(msgid: string): Promise<string> {
+        const ret = this.bot.dbSqlQuery(
+            "MSG0.db",
+            `Select * from MSG WHERE MsgSvrID = "${msgid}"`
+        );
+        const buf = ret?.[0]?.["BytesExtra"];
+        if (!Buffer.isBuffer(buf)) {
+            return "";
+        }
+        const str = buf.toString();
+        const spliter = Buffer.from("1aefbfbd0108", "hex").toString("utf8");
+        const parts = str.split(spliter);
+        if (parts.length < 1) {
+            return "";
+        }
+
+        const wxid = this.self.id;
+        const index = parts[1].indexOf(wxid);
+        if (index === -1) {
+            return "";
+        }
+        const extra = parts[1].substring(index).replace(/\.dat.*/, ".dat");
+        logger.info("get extra:", extra);
+        const fullextra = path.join(
+            os.homedir(),
+            "\\Documents\\WeChat Files",
+            extra
+        );
+        if (!fs.existsSync(fullextra)) {
+            return "";
+        }
+        return await this.bot.downloadImage(msgid, fullextra, this.dlCache);
+    }
+
+    private readonly dlCache = path.join(os.tmpdir(), ".wcferry-downloads");
 
     async send(
         messages: MessageSegment[],
