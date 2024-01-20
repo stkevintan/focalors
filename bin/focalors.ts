@@ -7,6 +7,7 @@ import { WechatFerry } from "@focalors/wechat-ferry-agent";
 import path from "path";
 import { YunzaiClient } from "@focalors/yunzai-client";
 import { GPTClient, Dalle3Client } from "@focalors/gpt-client";
+import { RandomAbyssClient } from "@focalors/custom-client";
 
 dotenv.config();
 
@@ -20,7 +21,9 @@ async function main() {
 
         const program = Program.create(
             WechatFerry, // <--- master
-            YunzaiClient, // <--- slaves
+            // following slaves
+            RandomAbyssClient,
+            YunzaiClient, 
             Dalle3Client,
             GPTClient
         );

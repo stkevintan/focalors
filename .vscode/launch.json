@@ -10,7 +10,7 @@
             "request": "launch",
 
             // Debug current file in VSCode
-            "program": "${workspaceRoot}/bin/forcalors.ts",
+            "program": "${workspaceRoot}/bin/focalors.ts",
 
             /*
             Path to tsx binary

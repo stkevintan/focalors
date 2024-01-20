@@ -220,6 +220,10 @@ export class WechatFerry implements OnebotWechat {
         };
     }
 
+    async getGroupMembers(roomId: string) {
+        return await this.bot.getChatRoomMembers(roomId);
+    }
+
     async getFriend(
         userId: string,
         groupId?: string,

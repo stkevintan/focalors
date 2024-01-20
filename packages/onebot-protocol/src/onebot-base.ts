@@ -70,6 +70,7 @@ export interface OnebotWechat extends AsyncService {
 
     getFriends(withAvatar?: boolean): Promise<FriendInfo[]>;
     getGroups(withAvatar?: boolean): Promise<GroupInfo[]>;
+    getGroupMembers(roomId: string): Promise<Record<string, string>>;
     getFriend(
         userId: string,
         groupId?: string,
