@@ -97,7 +97,7 @@ export class RandomAbyssClient extends OnebotClient {
     private async getCandidates(groupId: string) {
         const key = this.key(groupId);
         const ids = await this.redis.sEntries(key);
-        // await this.redis.expire(key, 4 * 60 * 60 * 24, "NX");
+        await this.redis.expire(key, 4 * 60 * 60 * 24, "NX");
         const memberDict = await this.wechat.getGroupMembers(groupId);
         const users = [...ids].map((id) => memberDict[id] ?? id);
         return users;
