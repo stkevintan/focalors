@@ -10,5 +10,8 @@ export class WcfConfiguration {
         port: 10086,
         host: "127.0.0.1",
         cacheDir: path.join(os.tmpdir(), `wcferry-${randomUUID()}`),
+        socketOptions: {
+            // recvTimeout: 60 * 1000
+        }
     };
 }

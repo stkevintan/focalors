@@ -125,10 +125,6 @@ export class GPTClient extends OnebotClient {
                     this.sendText("🔍 正在识图...", from);
                     // firstly we download the image
                     const p = await this.wechat.downloadImage(id);
-                    if (!p) {
-                        this.sendText("图片解码失败", from);
-                        return true;
-                    }
                     logger.debug("Downloaded wechat image to", p);
                     prompt[0].content = [
                         {
@@ -144,6 +140,8 @@ export class GPTClient extends OnebotClient {
                     ];
                 } catch (err) {
                     logger.error("Failed to process image", err);
+                    this.sendText("图片解码失败", from);
+                    return true;
                 }
             }
         }

@@ -58,10 +58,14 @@ export class WechatFerry implements OnebotWechat {
         this.currentUser = this.bot.getUserInfo();
         logger.info("wechat-ferry started");
     }
+    private stopped = false;
 
     async stop(): Promise<void> {
-        this.server?.close();
-        this.bot.stop();
+        if (!this.stopped) {
+            this.server?.close();
+            this.bot.stop();
+            this.stopped = true;
+        }
     }
 
     subscribe(
@@ -72,7 +76,7 @@ export class WechatFerry implements OnebotWechat {
             logger.info(
                 `Received Message: ${message.id} [From ${message.sender}]`,
                 `[Type:${message.typeName}]`,
-                message.isGroup ? `[Group]` : "",
+                message.isGroup ? `[Group]` : ""
             );
             logger.debug(`Content:`, message.content);
             const msgSegments: MessageSegment[] = [];
@@ -317,37 +321,7 @@ export class WechatFerry implements OnebotWechat {
     }
 
     async downloadImage(msgid: string): Promise<string> {
-        const ret = this.bot.dbSqlQuery(
-            "MSG0.db",
-            `Select * from MSG WHERE MsgSvrID = "${msgid}"`
-        );
-        const buf = ret?.[0]?.["BytesExtra"];
-        if (!Buffer.isBuffer(buf)) {
-            return "";
-        }
-        const str = buf.toString();
-        const spliter = Buffer.from("1aefbfbd0108", "hex").toString("utf8");
-        const parts = str.split(spliter);
-        if (parts.length < 1) {
-            return "";
-        }
-
-        const wxid = this.self.id;
-        const index = parts[1].indexOf(wxid);
-        if (index === -1) {
-            return "";
-        }
-        const extra = parts[1].substring(index).replace(/\.dat.*/, ".dat");
-        logger.info("get extra:", extra);
-        const fullextra = path.join(
-            os.homedir(),
-            "\\Documents\\WeChat Files",
-            extra
-        );
-        // if (!fs.existsSync(fullextra)) {
-        //     return "";
-        // }
-        return await this.bot.downloadImage(msgid, fullextra, this.dlCache);
+        return await this.bot.downloadImage(msgid, this.dlCache);
     }
 
     private readonly dlCache = path.join(os.tmpdir(), ".wcferry-downloads");

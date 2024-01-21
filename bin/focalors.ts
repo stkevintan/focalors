@@ -7,7 +7,7 @@ import { WechatFerry } from "@focalors/wechat-ferry-agent";
 import path from "path";
 import { YunzaiClient } from "@focalors/yunzai-client";
 import { GPTClient, Dalle3Client } from "@focalors/gpt-client";
-import { RandomAbyssClient } from "@focalors/custom-client";
+import { RandomAbyssClient, SystemClient } from "@focalors/custom-client";
 
 dotenv.config();
 
@@ -18,17 +18,17 @@ const logger = createLogger({
 
 async function main() {
     try {
-
         const program = Program.create(
             WechatFerry, // <--- master
             // following slaves
+            SystemClient,
             RandomAbyssClient,
-            YunzaiClient, 
+            YunzaiClient,
             Dalle3Client,
             GPTClient
         );
         await program.start();
-        process.send?.('ready');
+        process.send?.("ready");
 
         async function exitHandler() {
             logger.info("\nGracefully shutting down...");
