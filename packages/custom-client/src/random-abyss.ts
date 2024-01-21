@@ -27,13 +27,11 @@ const ghCard: CardMessageSegment = {
 @injectable()
 export class RandomAbyssClient extends OnebotClient {
     constructor(
-        @inject(OnebotWechatToken) protected wechat: OnebotWechat,
-        @inject(RedisClient) protected redis: RedisClient
+        @inject(RedisClient) protected redis: RedisClient,
+        @inject(OnebotWechatToken) wechat: OnebotWechat
     ) {
-        super();
+        super(wechat);
     }
-    async start(): Promise<void> {}
-    async stop(): Promise<void> {}
     private key = (groupId: string) => `client:random-abyss:${groupId}`;
     async recv(
         message: MessageSegment[],

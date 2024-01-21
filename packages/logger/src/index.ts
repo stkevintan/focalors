@@ -65,7 +65,7 @@ export function createLogger(settings: CreateLoggerParams = {}) {
     
     function stdoutTransport(logObject: ILogObj) {
         const { message, logMeta } = parseLogObj(logObject);
-        if (logMeta.logLevelId > 2) {
+        if (logMeta.logLevelId >= 2) {
             console.log(
                 `${logMeta.name} [${
                     logMeta.logLevelName

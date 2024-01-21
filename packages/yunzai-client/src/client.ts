@@ -25,7 +25,6 @@ import { Configuration } from "./config";
 import { Defer } from "./utils/defer";
 import { logger } from "./logger";
 
-
 @injectable()
 export class YunzaiClient extends OnebotClient {
     readonly self: BotStatus["self"] = {
@@ -36,9 +35,9 @@ export class YunzaiClient extends OnebotClient {
     private client?: ws;
     constructor(
         @inject(Configuration) protected configuration: Configuration,
-        @inject(OnebotWechatToken) protected wechat: OnebotWechat
+        @inject(OnebotWechatToken) wechat: OnebotWechat
     ) {
-        super();
+        super(wechat);
     }
 
     private actionHandlers: {
@@ -56,7 +55,7 @@ export class YunzaiClient extends OnebotClient {
             bots: [{ online: true, self: this.self }],
         }),
         upload_file: async (file) => {
-            const id = await this.wechat.cacheFile(file);
+            const id = await this.wechat.uploadFile(file);
             return {
                 file_id: id,
             };
@@ -86,7 +85,7 @@ export class YunzaiClient extends OnebotClient {
         },
     };
 
-    async start(): Promise<void> {
+    override async start(): Promise<void> {
         await this.connect();
         logger.info("yunzai client started");
     }
@@ -105,7 +104,7 @@ export class YunzaiClient extends OnebotClient {
         return this.client;
     }
 
-    async stop() {
+    override async stop() {
         if (this.client && this.client.readyState < ws.CLOSING) {
             this.client.close();
         }

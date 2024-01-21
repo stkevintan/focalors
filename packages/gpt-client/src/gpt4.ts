@@ -1,4 +1,3 @@
-import path from "path";
 import {
     AccessManager,
     expandTarget,
@@ -20,54 +19,27 @@ import { Configuration } from "./config";
 import assert from "assert";
 import { ChatCompletionMessageParam } from "openai/resources";
 import { APIError } from "openai/error";
-import { randomUUID } from "crypto";
 import { getPrompt } from "./utils";
+import { readFile, rm } from "fs/promises";
+import { Dalle3Client } from "./dalle3";
 
 @injectable()
 export class GPTClient extends OnebotClient {
     private openai: OpenAI;
     constructor(
         @inject(Configuration) protected configuration: Configuration,
-        @inject(OnebotWechatToken) protected wechat: OnebotWechat,
+        @inject(OnebotWechatToken) wechat: OnebotWechat,
         @injectAccessManager("gpt") protected accessManager: AccessManager,
-        @inject(RedisClient) protected redis: RedisClient
+        @inject(RedisClient) protected redis: RedisClient,
+        @inject(Dalle3Client) protected dalle3Client: Dalle3Client
     ) {
-        super();
+        super(wechat);
         this.openai = new OpenAI({
             baseURL: `${configuration.endpoint}/openai/deployments/${configuration.deployment}`,
             defaultQuery: { "api-version": configuration.apiVersion },
             defaultHeaders: { "api-key": configuration.apiKey },
             apiKey: configuration.apiKey,
         });
-    }
-
-    private async sendFileOrImage(
-        type: "image" | "file",
-        params: Parameters<OnebotWechat["cacheFile"]>[0],
-        target: MessageTarget2
-    ) {
-        const id = await this.wechat.cacheFile(params);
-        this.send(
-            [
-                {
-                    type,
-                    data: { file_id: id },
-                },
-            ],
-            target
-        );
-    }
-
-    private async sendErrorImage(from: MessageTarget2) {
-        await this.sendFileOrImage(
-            "image",
-            {
-                type: "path",
-                path: path.resolve(__dirname, "../assets/error.jpg"),
-                name: "wechat-gpt-client-api-error.jpg",
-            },
-            from
-        );
     }
 
     override async recv(
@@ -78,10 +50,6 @@ export class GPTClient extends OnebotClient {
         const out = await this.accessManager.manage(message, target.userId);
         if (out) {
             this.sendText(out, from);
-            return true;
-        }
-
-        if (await this.gif(message, from)) {
             return true;
         }
 
@@ -102,9 +70,7 @@ export class GPTClient extends OnebotClient {
             target.groupId &&
             !message.some(
                 (m) =>
-                    (m.type === "mention" ||
-                        (m.type === "reply" &&
-                            m.data.message_type === "text")) &&
+                    (m.type === "mention" || m.type === "reply") &&
                     m.data.user_id === this.wechat.self.id
             )
         ) {
@@ -121,48 +87,97 @@ export class GPTClient extends OnebotClient {
 
         const name = target.groupId ? target.userId! : undefined;
 
-        const prompt = [text];
-        // const messages: ChatCompletionMessageParam[] = [
-        //     {
-        //         role: "user",
-        //         content: text,
-        //     },
-        // ];
+        // store prompts in reverse order
+        const prompt: ChatCompletionMessageParam[] = [
+            { role: "user", content: text, name },
+        ];
         // if the message was replied, add the reply content into context
         const contextSegment = message.find(
             (m): m is ReplyMessageSegment => m.type === "reply"
         );
+        let keepContext = true;
+        if (contextSegment) {
+            const {
+                message_content: content,
+                message_id: id,
+                message_type: messageType,
+                user_id: userId,
+            } = contextSegment.data;
+            const isReplyMe = userId === this.wechat.self.id;
 
-        const context = contextSegment?.data.message_content;
+            if (messageType === "text" && typeof content === "string") {
+                const text = stripAt(content)
+                    .trim()
+                    .substring(0, this.configuration.tokenLimit);
+                if (!isReplyMe) {
+                    prompt.push({
+                        role: "user",
+                        content: text,
+                        name: userId,
+                    });
+                }
+                logger.debug(`Prepended assistant context:`, content);
+            }
 
-        if (
-            contextSegment?.data.message_type === "text" &&
-            typeof context === "string"
-        ) {
-            const content = stripAt(context)
-                .trim()
-                .substring(0, this.configuration.tokenLimit);
-            prompt.unshift(content);
-            logger.debug(`Prepended assistant context:`, content);
+            if (messageType === "image") {
+                try {
+                    keepContext = false;
+                    this.sendText("🔍 正在识图...", from);
+                    // firstly we download the image
+                    const p = await this.wechat.downloadImage(id);
+                    if (!p) {
+                        this.sendText("图片解码失败", from);
+                        return true;
+                    }
+                    logger.debug("Downloaded wechat image to", p);
+                    prompt[0].content = [
+                        {
+                            type: "text",
+                            text,
+                        },
+                        {
+                            type: "image_url",
+                            image_url: {
+                                url: await imageToDataUrl(p),
+                            },
+                        },
+                    ];
+                } catch (err) {
+                    logger.error("Failed to process image", err);
+                }
+            }
         }
 
         try {
+            const messages = keepContext
+                ? await this.createConversation(prompt, key)
+                : prompt;
             const completion = await this.openai.chat.completions.create({
-                messages: await this.createConversation(
-                    prompt.join("\n"),
-                    key,
-                    name
-                ),
+                messages,
                 model: this.configuration.deployment ?? "",
                 // how many tokens gpt can return
                 max_tokens: this.configuration.tokenLimit,
+                // tools: [
+                //     {
+                //         type: "function",
+                //         function: {
+                //             function: (prompt) => this.generateImage(),
+                //             description: "generate image by Dall-e 3",
+                //             parameters: { type: "string" },
+                //         },
+                //     },
+                // ],
             });
             const assistant = completion.choices[0]?.message.content;
             assert(assistant, `Assistant returned with empty`);
-            await this.pushMessageCache(key, {
-                role: "assistant",
-                content: assistant,
-            });
+            if (keepContext) {
+                await this.pushMessageCache(key, [
+                    {
+                        role: "assistant",
+                        content: assistant,
+                    },
+                ]);
+            }
             this.sendText(assistant, from);
             logger.debug(`Completion processed`);
             return true;
@@ -181,94 +196,37 @@ export class GPTClient extends OnebotClient {
     }
 
     private async createConversation(
-        prompt: string,
-        key: string,
-        name?: string
+        prompt: ChatCompletionMessageParam[],
+        key: string
     ): Promise<ChatCompletionMessageParam[]> {
-        const resp = await this.redis.slice(
+        const resp = (await this.redis.slice(
             key,
             0,
             this.configuration.contextLength
-        );
-        const conversations = resp.map((p) =>
-            JSON.parse(p)
-        ) as ChatCompletionMessageParam[];
-        conversations.unshift({ role: "user", name, content: prompt });
-        await this.pushMessageCache(key, conversations[0]);
+        )) as ChatCompletionMessageParam[];
+        const conversations = prompt.concat(resp);
+        try {
+            await this.pushMessageCache(key, prompt);
+        } catch (err) {
+            logger.error("Failed to push message cache:", key);
+        }
         return conversations.reverse();
     }
 
     private async pushMessageCache(
         key: string,
-        entry: ChatCompletionMessageParam
+        entries: ChatCompletionMessageParam[]
     ): Promise<void> {
-        await this.redis.unshift(key, entry);
+        this.redis.unshift(key, ...entries);
+
         if (Math.random() > 0.5) {
             await this.redis.lTrim(key, 0, this.configuration.contextLength);
         }
     }
 
-    private async gif(
-        message: MessageSegment[],
-        from: MessageTarget2
-    ): Promise<boolean> {
-        const ret = matchPattern(message, /^\/gif\s*(\w+)\s+(.*)\s*$/);
-        const sendUsage = () =>
-            this.sendText(
-                `Usage: /gif <name> <line1>,<line2>,...\nPS: get <name> from: https://sorry.xuty.cc/<name>`,
-                from
-            );
-        if (ret?.[1]) {
-            const url = `https://sorry.xuty.cc/${ret[1]}/make`;
-            const body = ret[2]
-                ? Object.fromEntries(
-                      ret[2].split(",").map((t, i) => [i, t] as const)
-                  )
-                : {};
-            const resp = await fetch(url, {
-                method: "POST",
-                body: JSON.stringify(body),
-            });
-            try {
-                const text = await resp.text();
-                /*
-                <p>
-                    <a href="/cache/edcbe646b8b0a9d83f0675b9545c745b.gif" target="_blank">
-                        <p>点击下载</p>
-                    </a>
-                </p>
-                */
-                const matchRet = text.match(/href\s*=\s*"(.*\.gif)"/);
-                if (matchRet?.[1]) {
-                    this.sendFileOrImage(
-                        "image",
-                        {
-                            type: "url",
-                            url: `https://sorry.xuty.cc/${matchRet[1]}`,
-                            name: `${randomUUID()}.gif`,
-                        },
-                        from
-                    );
-                } else {
-                    sendUsage();
-                }
-            } catch (err) {
-                await this.sendErrorImage(from);
-                logger.error("make gif erorr:", err);
-            }
-            return true;
-        }
-        if (matchPattern(message, /^\/gif/)) {
-            sendUsage();
-            return true;
-        }
-        return false;
-    }
-
-    async start(): Promise<void> {
+    override async start(): Promise<void> {
         assert(this.configuration.apiKey, "OPENAI_APIKEY is empty");
     }
-    async stop(): Promise<void> {}
 }
 
 function matchPattern(message: MessageSegment[], pattern: RegExp) {
@@ -287,4 +245,13 @@ function stripAt(text: string): string {
 
 function createConversationKey(id: string) {
     return `gpt:prompt:${id}`;
+}
+
+async function imageToDataUrl(filepath: string): Promise<string> {
+    const base64 = await readFile(filepath, "base64");
+    const url = `data:image/jpeg;base64,${base64}`;
+    void rm(filepath).catch((err) => {
+        logger.error("failed to remove file:", filepath, err);
+    });
+    return url;
 }

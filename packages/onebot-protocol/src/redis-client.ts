@@ -23,11 +23,12 @@ export class RedisClient implements AsyncService {
     }
 
     async slice(key: string, from: number, to: number) {
-        return await this.client.lRange(key, from, to);
+        const arr = await this.client.lRange(key, from, to);
+        return arr.map(entry => JSON.parse(entry));
     }
 
-    async unshift(key: string, value: unknown) {
-        return await this.client.lPush(key, JSON.stringify(value));
+    async unshift(key: string, ...value: unknown[]) {
+        return await this.client.lPush(key, value.map(v => JSON.stringify(v)));
     }
 
     async lTrim(key: string, from: number, to: number) {

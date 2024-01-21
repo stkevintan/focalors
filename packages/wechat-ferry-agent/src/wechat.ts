@@ -16,7 +16,6 @@ import {
 import { Contact, UserInfo, Wcferry, FileRef } from "@wcferry/core";
 import { WcfWSServer } from "@wcferry/ws";
 import { randomUUID } from "crypto";
-import fs from "fs";
 import os from "os";
 import path from "path";
 import { ensureDirSync } from "@wcferry/core/src/lib/utils";
@@ -74,7 +73,6 @@ export class WechatFerry implements OnebotWechat {
                 `Received Message: ${message.id} [From ${message.sender}]`,
                 `[Type:${message.typeName}]`,
                 message.isGroup ? `[Group]` : "",
-                message.xml
             );
             logger.debug(`Content:`, message.content);
             const msgSegments: MessageSegment[] = [];
@@ -279,7 +277,7 @@ export class WechatFerry implements OnebotWechat {
         return this.bot.sendTxt(body.msg, body.receiver, body.aters);
     }
 
-    async cacheFile(file: UploadFileAction["req"]): Promise<string> {
+    async uploadFile(file: UploadFileAction["req"]): Promise<string> {
         const id = file.name ?? randomUUID();
         const key = createRedisFileKey(id);
         if (await this.redis.exists(key)) {
@@ -346,9 +344,9 @@ export class WechatFerry implements OnebotWechat {
             "\\Documents\\WeChat Files",
             extra
         );
-        if (!fs.existsSync(fullextra)) {
-            return "";
-        }
+        // if (!fs.existsSync(fullextra)) {
+        //     return "";
+        // }
         return await this.bot.downloadImage(msgid, fullextra, this.dlCache);
     }
 
