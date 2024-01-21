@@ -45,7 +45,6 @@ async function main() {
         // catches uncaught exceptions
         process.on("uncaughtException", (e) => {
             logger.error("Uncaught exception:", e);
-            void exitHandler();
         });
 
         // Windows graceful stop

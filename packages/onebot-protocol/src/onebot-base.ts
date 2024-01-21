@@ -1,5 +1,5 @@
 import EventEmitter from "events";
-import { InjectionToken } from "tsyringe";
+import { inject, InjectionToken } from "tsyringe";
 import { AsyncService } from "./common";
 import {
     MessageSegment,
@@ -16,14 +16,19 @@ export type AbstractActionMap = Omit<
     "get_status" | "send_message" | "get_version"
 >;
 
+export const OnebotWechatToken: InjectionToken<OnebotWechat> = "onebot_wechat";
+export const OnebotClientToken: InjectionToken<OnebotClient> = "onebot_client";
+
 export abstract class OnebotClient implements AsyncService {
     private eventSub = new EventEmitter();
-    constructor() {
+    constructor(@inject(OnebotWechatToken) protected wechat: OnebotWechat) {
         this.eventSub.setMaxListeners(0);
     }
-    abstract start(): Promise<void>;
 
-    abstract stop(): Promise<void>;
+    async start(): Promise<void> {}
+
+    async stop(): Promise<void> {}
+
     subscribe(
         callback: (message: MessageSegment[], target: MessageTarget2) => void
     ): void {
@@ -52,14 +57,28 @@ export abstract class OnebotClient implements AsyncService {
             );
         }
     }
+    protected async sendFile(
+        params: Parameters<OnebotWechat["uploadFile"]>[0],
+        target: MessageTarget2,
+        type: "image" | "file" = "image"
+    ) {
+        const id = await this.wechat.uploadFile(params);
+        this.send(
+            [
+                {
+                    type,
+                    data: { file_id: id },
+                },
+            ],
+            target
+        );
+    }
 
     abstract recv(
         message: MessageSegment[],
         from: MessageTarget2
     ): Promise<boolean>;
 }
-
-export const OnebotClientToken: InjectionToken<OnebotClient> = "onebot_client";
 
 export interface OnebotWechat extends AsyncService {
     readonly self: { id: string; name: string };
@@ -76,11 +95,9 @@ export interface OnebotWechat extends AsyncService {
         groupId?: string,
         withAvatar?: boolean
     ): Promise<FriendInfo>;
-    cacheFile(file: UploadFileAction["req"]): Promise<string>;
+    uploadFile(file: UploadFileAction["req"]): Promise<string>;
     downloadImage(msgId: string): Promise<string>;
 }
-
-export const OnebotWechatToken: InjectionToken<OnebotWechat> = "onebot_wechat";
 
 export function expandTarget(
     target: MessageTarget2

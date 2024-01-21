@@ -20,10 +20,10 @@ export class Dalle3Client extends OnebotClient {
     private openai: OpenAI;
     constructor(
         @inject(Configuration) protected configuration: Configuration,
-        @inject(OnebotWechatToken) protected wechat: OnebotWechat,
+        @inject(OnebotWechatToken) wechat: OnebotWechat,
         @injectAccessManager("dalle") protected accessManager: AccessManager
     ) {
-        super();
+        super(wechat);
         this.openai = new OpenAI({
             baseURL: `${configuration.endpoint}/openai/deployments/${configuration.dalleDeployment}`,
             defaultQuery: { "api-version": configuration.apiVersion },
@@ -32,16 +32,12 @@ export class Dalle3Client extends OnebotClient {
         });
     }
 
-    async start() {}
-
-    async stop() {}
-
     private async sendFileOrImage(
         type: "image" | "file",
-        params: Parameters<OnebotWechat["cacheFile"]>[0],
+        params: Parameters<OnebotWechat["uploadFile"]>[0],
         target: MessageTarget2
     ) {
-        const id = await this.wechat.cacheFile(params);
+        const id = await this.wechat.uploadFile(params);
         this.send(
             [
                 {
@@ -63,7 +59,9 @@ export class Dalle3Client extends OnebotClient {
             this.sendText(out, from);
             return true;
         }
-        if (!await this.accessManager.check(target.groupId || target.userId!)) {
+        if (
+            !(await this.accessManager.check(target.groupId || target.userId!))
+        ) {
             return false;
         }
 
@@ -110,6 +108,20 @@ export class Dalle3Client extends OnebotClient {
         return false;
     }
 
+    async generate(prompt: string, keywords: Record<string, boolean> = {}) {
+        const params: ImageGenerateParams = {
+            prompt: `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS:${prompt}`,
+            n: 1,
+            quality: keywords["hd"] ? "hd" : "standard",
+            response_format: "url",
+            // "1024x1024" | "1792x1024" | "1024x1792"
+            size: "1024x1024",
+            style: keywords["natural"] ? "natural" : "vivid",
+        };
+        logger.debug("Image generating params:", params);
+
+        return await this.openai.images.generate(params);
+    }
     private async handleImage(prompt: string, from: MessageTarget2) {
         const keywords = {
             hd: false,
@@ -131,18 +143,7 @@ export class Dalle3Client extends OnebotClient {
         }
 
         this.sendText("🧑‍🎨 正在作图...", from);
-        const params: ImageGenerateParams = {
-            prompt: `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS:${prompt}`,
-            n: 1,
-            quality: keywords["hd"] ? "hd" : "standard",
-            response_format: "url",
-            // "1024x1024" | "1792x1024" | "1024x1792"
-            size: "1024x1024",
-            style: keywords["natural"] ? "natural" : "vivid",
-        };
-        logger.debug("Image generating params:", params);
-
-        const ret = await this.openai.images.generate(params);
+        const ret = await this.generate(prompt, keywords);
         let hasSent = false;
         for (const image of ret.data) {
             if (image.url) {
