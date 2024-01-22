@@ -1,6 +1,5 @@
 import { inject, singleton } from "tsyringe";
 import { MessageType, WcfMessage } from "./wcf-message";
-import { logger } from "./logger";
 import { WcfConfiguration } from "./config";
 import assert from "assert";
 import {
@@ -19,6 +18,9 @@ import { randomUUID } from "crypto";
 import os from "os";
 import path from "path";
 import { ensureDirSync } from "@wcferry/core/src/lib/utils";
+import { createLogger } from "@focalors/logger";
+
+const logger = createLogger("wcf-agent");
 
 export interface Contact2 extends Contact {
     avatar?: string;
@@ -78,7 +80,7 @@ export class WechatFerry implements OnebotWechat {
                 `[Type:${message.typeName}]`,
                 message.isGroup ? `[Group]` : ""
             );
-            logger.debug(`Content:`, message.content);
+            logger.debug(`Content: %O`, message.content);
             const msgSegments: MessageSegment[] = [];
             if (message.isSelf) {
                 logger.warn(`Self message, skip...`);
@@ -92,7 +94,7 @@ export class WechatFerry implements OnebotWechat {
             }
 
             // if (message.type === MessageType.Image) {
-            //     logger.info("Insert message id:", message.id);
+            //     logger.info("Insert message id: %s", message.id);
             //     const p = await this.bot.downloadAttach(message.id, message.raw.thumb, message.extra);
             //     await this.bot.decryptImage(message.extra, 'abdfgh');
             //     console.log('# path:', p);

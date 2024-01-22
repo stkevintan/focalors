@@ -8,8 +8,9 @@ import {
     OnebotWechatToken,
     RedisClient,
 } from "@focalors/onebot-protocol";
+import { createLogger, Logger } from "@focalors/logger";
 
-import { logger } from "./logger";
+const logger: Logger = createLogger("program");
 
 @injectable()
 export class Program implements AsyncService {

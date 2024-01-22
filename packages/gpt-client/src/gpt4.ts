@@ -14,7 +14,6 @@ import {
 import { OpenAI } from "openai";
 
 import { inject, injectable } from "tsyringe";
-import { logger } from "./logger";
 import { Configuration } from "./config";
 import assert from "assert";
 import { ChatCompletionMessageParam } from "openai/resources";
@@ -22,6 +21,9 @@ import { APIError } from "openai/error";
 import { getPrompt } from "./utils";
 import { readFile, rm } from "fs/promises";
 import { Dalle3Client } from "./dalle3";
+import { createLogger, Logger } from "@focalors/logger";
+
+const logger: Logger = createLogger("gpt-client");
 
 @injectable()
 export class GPTClient extends OnebotClient {
@@ -116,7 +118,7 @@ export class GPTClient extends OnebotClient {
                         name: userId,
                     });
                 }
-                logger.debug(`Prepended assistant context:`, content);
+                logger.debug(`Prepended assistant context: %s`, content);
             }
 
             if (messageType === "image") {
@@ -125,7 +127,7 @@ export class GPTClient extends OnebotClient {
                     this.sendText("🔍 正在识图...", from);
                     // firstly we download the image
                     const p = await this.wechat.downloadImage(id);
-                    logger.debug("Downloaded wechat image to", p);
+                    logger.debug("Downloaded wechat image to %s", p);
                     prompt[0].content = [
                         {
                             type: "text",

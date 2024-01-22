@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { XMLParser } from "fast-xml-parser";
-import { logger } from "./logger";
 import { Message } from "@wcferry/core";
+import { createLogger } from "@focalors/logger";
+
+const logger = createLogger('wcf-message');
 
 /*
 "0": "朋友圈消息",

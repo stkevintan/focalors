@@ -10,8 +10,10 @@ import {
     MessageTarget2,
     OnebotWechat,
 } from "@focalors/onebot-protocol";
-import { logger } from "./logger";
 import assert from "assert";
+import { createLogger } from "@focalors/logger";
+
+const logger = createLogger("wechaty-agent");
 
 @singleton()
 export class Wechaty extends OnebotWechat {
