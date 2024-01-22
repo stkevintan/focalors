@@ -12,8 +12,10 @@ import { inject, injectable } from "tsyringe";
 import { APIError, OpenAI } from "openai";
 import { Configuration } from "./config";
 import { getPrompt } from "./utils";
-import { logger } from "./logger";
 import { ImageGenerateParams } from "openai/resources";
+import { createLogger, Logger } from "@focalors/logger";
+
+const logger: Logger = createLogger('dalle-client');
 
 @injectable()
 export class Dalle3Client extends OnebotClient {
@@ -118,7 +120,7 @@ export class Dalle3Client extends OnebotClient {
             size: "1024x1024",
             style: keywords["natural"] ? "natural" : "vivid",
         };
-        logger.debug("Image generating params:", params);
+        logger.debug("Image generating params: %O", params);
 
         return await this.openai.images.generate(params);
     }
@@ -157,7 +159,7 @@ export class Dalle3Client extends OnebotClient {
                     from
                 );
             }
-            logger.debug("Image revised_prompt:", image.revised_prompt);
+            logger.debug("Image revised_prompt: %s", image.revised_prompt);
         }
         if (!hasSent) {
             this.sendText("糟糕，生成失败", from);

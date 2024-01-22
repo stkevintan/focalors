@@ -1,3 +1,4 @@
+import { createLogger, Logger } from "@focalors/logger";
 import {
     AccessManager,
     injectAccessManager,
@@ -9,6 +10,8 @@ import {
     OnebotWechatToken,
 } from "@focalors/onebot-protocol";
 import { inject, injectable } from "tsyringe";
+
+const logger: Logger = createLogger('system-client');
 
 @injectable()
 export class SystemClient extends OnebotClient {
@@ -29,7 +32,7 @@ export class SystemClient extends OnebotClient {
             (await this.accessManager.check(from))
         ) {
             await this.wechat.stop();
-            console.log('wechat stopped');
+            logger.info('wechat stopped');
             return true;
         }
         return false;

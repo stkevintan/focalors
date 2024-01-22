@@ -1,20 +1,14 @@
 import "reflect-metadata";
 import * as dotenv from "dotenv";
+dotenv.config();
 
-import { createLogger } from "@focalors/logger";
+import { rootLogger } from "@focalors/logger";
 import { Program } from "@focalors/wechat-bridge";
 import { WechatFerry } from "@focalors/wechat-ferry-agent";
-import path from "path";
 import { YunzaiClient } from "@focalors/yunzai-client";
 import { GPTClient, Dalle3Client } from "@focalors/gpt-client";
 import { RandomAbyssClient, SystemClient } from "@focalors/custom-client";
 
-dotenv.config();
-
-const logger = createLogger({
-    name: "forcalors",
-    filename: path.resolve(__dirname, "../logs/stdout"),
-});
 
 async function main() {
     try {
@@ -31,8 +25,10 @@ async function main() {
         process.send?.("ready");
 
         async function exitHandler() {
-            logger.info("\nGracefully shutting down...");
-            await program.stop().finally(() => process.exit(0));
+            rootLogger.info("Gracefully shutting down...");
+            await program.stop().finally(() => {
+                rootLogger.flush(() => process.exit(0));
+            });
         }
 
         // catches ctrl+c event
@@ -44,7 +40,7 @@ async function main() {
 
         // catches uncaught exceptions
         process.on("uncaughtException", (e) => {
-            logger.error("Uncaught exception:", e);
+            rootLogger.error("Uncaught exception: %O", e);
         });
 
         // Windows graceful stop
@@ -54,7 +50,7 @@ async function main() {
             }
         });
     } catch (err) {
-        logger.error(err);
+        rootLogger.error(err);
     }
 }
 

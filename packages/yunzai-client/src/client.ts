@@ -22,8 +22,9 @@ import {
     BotStatus,
 } from "@focalors/onebot-protocol";
 import { Configuration } from "./config";
-import { Defer } from "./utils/defer";
-import { logger } from "./logger";
+import { createLogger } from "@focalors/logger";
+
+const logger = createLogger("yunzai-client");
 
 @injectable()
 export class YunzaiClient extends OnebotClient {
@@ -152,7 +153,7 @@ export class YunzaiClient extends OnebotClient {
         if (null === req || typeof req !== "object") {
             logger.warn("Unexpected message received", req);
         }
-        logger.debug("Received client message:", dontOutputBase64(req));
+        logger.debug("Received client message: %O", dontOutputBase64(req));
         const handler = this.actionHandlers[req.action];
 
         if (!handler) {
@@ -170,8 +171,7 @@ export class YunzaiClient extends OnebotClient {
             );
         } catch (err) {
             logger.debug(`Event handler of ${req.action} failed to execute`);
-            // use logger will cause a problem. not sure why.
-            console.error(err);
+            logger.error(err);
         }
     }
 
@@ -259,9 +259,9 @@ async function waitFor<T = unknown>(
     host: EventEmitter,
     event: string
 ): Promise<T[]> {
-    const defer = new Defer<T[]>();
-    host.once(event, (...args: T[]) => defer.resolve(args));
-    return await defer.promise;
+    return await new Promise<T[]>((res) =>
+        host.once(event, (...args: T[]) => res(args))
+    );
 }
 
 function dontOutputBase64(req: ActionReq<Action>) {

@@ -5,6 +5,9 @@ import { RedisClient } from "./redis-client";
 import { OnebotWechat, OnebotWechatToken } from "./onebot-base";
 import assert from "assert";
 import { Transform } from "tsyringe/dist/typings/types";
+import { createLogger, Logger } from "@focalors/logger";
+
+const logger: Logger = createLogger("access-manager");
 
 export interface AccessManager {
     manage(
@@ -49,7 +52,7 @@ class AccessManagerImpl implements AccessManager {
             return null;
         }
 
-        // logger.debug("Processing admin command:", ret[0]);
+        logger.info("Processing admin command: %s", ret[0]);
         const verb = ret[1];
         const key = ret?.[2]?.trim();
         return await this.execute(verb, key);
@@ -112,7 +115,7 @@ class AccessManagerImpl implements AccessManager {
                 return this.execute("list");
             }
             default:
-                // logger.warn("Unrecognized command:", ret[0]);
+                logger.warn("Unrecognized command:", verb, key);
                 assert(false, "impossible");
         }
     }

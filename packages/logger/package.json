@@ -3,9 +3,9 @@
     "version": "0.0.1",
     "dependencies": {
         "@swc/helpers": "~0.5.2",
-        "file-stream-rotator": "^1.0.0",
-        "syslog-client": "^1.1.1",
-        "tslog": "^4.8.2"
+        "pino": "^8.17.2",
+        "pino-loki": "^2.2.1",
+        "pino-pretty": "^10.3.1"
     },
     "type": "commonjs",
     "main": "./src/index.js",
