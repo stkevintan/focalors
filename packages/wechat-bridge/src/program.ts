@@ -28,7 +28,9 @@ export class Program implements AsyncService {
             lifecycle: Lifecycle.Singleton,
         });
         clientImpls.map((client) =>
-            container.register(OnebotClientToken, client)
+            container.register(OnebotClientToken, client, {
+                lifecycle: Lifecycle.Singleton,
+            })
         );
         return container.resolve(Program);
     }

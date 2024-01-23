@@ -323,7 +323,10 @@ export class WechatFerry implements OnebotWechat {
     }
 
     async downloadImage(msgid: string): Promise<string> {
-        return await this.bot.downloadImage(msgid, this.dlCache);
+        const p = await this.bot.downloadImage(msgid, this.dlCache);
+        assert(!!p, `Failed to donwload image`);
+        logger.debug("Downloaded wechat image to '%s'", p);
+        return p;
     }
 
     private readonly dlCache = path.join(os.tmpdir(), ".wcferry-downloads");
