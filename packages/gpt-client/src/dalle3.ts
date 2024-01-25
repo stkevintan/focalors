@@ -86,7 +86,7 @@ export class Dalle3Client extends OnebotClient {
                 ]);
                 logger.debug("Got completion response: %s", assistant);
                 assert(assistant, `Empty completion response`);
-                await this.handleImage(`${text} ${assistant}`, from);
+                await this.handleImage(`${text},${assistant}`, from);
             } else {
                 await this.handleImage(text.replace(/^prompt:/, ""), from);
             }
