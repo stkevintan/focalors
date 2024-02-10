@@ -152,11 +152,11 @@ importers:
         specifier: ~0.5.2
         version: 0.5.3
       '@wcferry/core':
-        specifier: ^0.1.5
-        version: 0.1.5
+        specifier: ^0.1.6
+        version: 0.1.6
       '@wcferry/ws':
         specifier: ^0.0.1
-        version: 0.0.1(@wcferry/core@0.1.5)
+        version: 0.0.1(@wcferry/core@0.1.6)
       fast-xml-parser:
         specifier: ^4.3.2
         version: 4.3.2
@@ -3461,8 +3461,8 @@ packages:
       pretty-format: 29.7.0
     dev: true
 
-  /@wcferry/core@0.1.5:
-    resolution: {integrity: sha512-P/sIAPQXuPBA6h75J41YAcFyXzKAOBtPlmxMd5nfb6Ojv41Axnj+aFAQkr46bnsYu5n/Su0ssfxZdqm1U4P+hw==}
+  /@wcferry/core@0.1.6:
+    resolution: {integrity: sha512-v2okbcwKi5vvWfSeiHSXJwU5PpRwZqvNy7KXIFZKRdZ4TwFu3Y9iMwS9A6/zq4uQBi0yN4/bFDf55OOqTn9AFg==}
     dependencies:
       '@rustup/nng': 0.1.2
       '@swc/helpers': 0.5.3
@@ -3473,14 +3473,14 @@ packages:
       - supports-color
     dev: false
 
-  /@wcferry/ws@0.0.1(@wcferry/core@0.1.5):
+  /@wcferry/ws@0.0.1(@wcferry/core@0.1.6):
     resolution: {integrity: sha512-5mJVqPNntX0LxzLm0hUoH5TmpqVuPUhTvv1xUQJU3YrYIkspiwFkG2PY38L/h0TlO1C2lsfJEb7sZ4Jx6mBXlw==}
     hasBin: true
     peerDependencies:
       '@wcferry/core': 0.1.5
     dependencies:
       '@swc/helpers': 0.5.3
-      '@wcferry/core': 0.1.5
+      '@wcferry/core': 0.1.6
       commander: 11.1.0
       debug: 4.3.4
       ws: 8.16.0

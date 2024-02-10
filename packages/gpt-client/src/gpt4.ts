@@ -8,7 +8,6 @@ import {
     OnebotWechat,
     OnebotWechatToken,
     RedisClient,
-    ReplyMessageSegment,
     TextMessageSegment,
 } from "@focalors/onebot-protocol";
 import { OpenAI } from "openai";
@@ -18,9 +17,8 @@ import { Configuration } from "./config";
 import assert from "assert";
 import { ChatCompletionMessageParam } from "openai/resources";
 import { APIError } from "openai/error";
-import { getPrompt } from "./utils";
+import { getPrompt, stripCommandAndAt } from "./utils";
 import { readFile, rm } from "fs/promises";
-import { Dalle3Client } from "./dalle3";
 import { createLogger, Logger } from "@focalors/logger";
 
 const logger: Logger = createLogger("gpt-client");
@@ -32,8 +30,7 @@ export class GPTClient extends OnebotClient {
         @inject(Configuration) protected configuration: Configuration,
         @inject(OnebotWechatToken) wechat: OnebotWechat,
         @injectAccessManager("gpt") protected accessManager: AccessManager,
-        @inject(RedisClient) protected redis: RedisClient,
-        @inject(Dalle3Client) protected dalle3Client: Dalle3Client
+        @inject(RedisClient) protected redis: RedisClient
     ) {
         super(wechat);
         this.openai = new OpenAI({
@@ -61,54 +58,54 @@ export class GPTClient extends OnebotClient {
             return false;
         }
         const key = createConversationKey(target.groupId || target.userId!);
-        if (matchPattern(message, /\/gpt\s+clear/)) {
+
+        if (matchPattern(message, /^\/gpt\s+clear\s*$/)) {
             await this.redis.del(key);
             this.sendText(`上下文已清除`, from);
             return true;
         }
-
-        // if no one at me or reply me in a group
-        if (
+        const prefixedGpt = matchPattern(message, /^\/gpt\s+/);
+        const privateChat = !target.groupId;
+        const groupAt =
             target.groupId &&
-            !message.some(
+            message.some(
                 (m) =>
                     (m.type === "mention" || m.type === "reply") &&
                     m.data.user_id === this.wechat.self.id
-            )
-        ) {
-            logger.debug(
-                `I am not at or mentioned in group ${target.groupId}, skip...`
+            );
+
+        logger.info(
+            `Prefixed GPT: ${prefixedGpt} | Private chat: ${privateChat} | Group mention or reply: ${groupAt}`
+        );
+
+        if (!prefixedGpt && !(privateChat || groupAt)) {
+            logger.info(
+                `I am not replied or mentioned in group ${target.groupId}, skip...`
             );
             return false;
         }
-
-        const text = getPrompt(message, this.configuration.tokenLimit);
+        const [text, reply] = getPrompt(message, this.configuration.tokenLimit);
         if (!text) {
             return false;
         }
-
         const name = target.groupId ? target.userId! : undefined;
 
         // store prompts in reverse order
         const prompt: ChatCompletionMessageParam[] = [
             { role: "user", content: text, name },
         ];
-        // if the message was replied, add the reply content into context
-        const contextSegment = message.find(
-            (m): m is ReplyMessageSegment => m.type === "reply"
-        );
         let keepContext = true;
-        if (contextSegment) {
+        if (reply) {
             const {
                 message_content: content,
                 message_id: id,
                 message_type: messageType,
                 user_id: userId,
-            } = contextSegment.data;
+            } = reply;
             const isReplyMe = userId === this.wechat.self.id;
 
             if (messageType === "text" && typeof content === "string") {
-                const text = stripAt(content)
+                const text = stripCommandAndAt(content)
                     .trim()
                     .substring(0, this.configuration.tokenLimit);
                 if (!isReplyMe) {
@@ -122,12 +119,14 @@ export class GPTClient extends OnebotClient {
             }
 
             if (messageType === "image") {
+                if (!prefixedGpt) {
+                    return true;
+                }
                 try {
                     keepContext = false;
                     this.sendText("🔍 正在识图...", from);
                     // firstly we download the image
                     const p = await this.wechat.downloadImage(id);
-                    logger.debug("Downloaded wechat image to %s", p);
                     prompt[0].content = [
                         {
                             type: "text",
@@ -141,7 +140,7 @@ export class GPTClient extends OnebotClient {
                         },
                     ];
                 } catch (err) {
-                    logger.error("Failed to process image", err);
+                    logger.error("Failed to process image %O", err);
                     this.sendText("图片解码失败", from);
                     return true;
                 }
@@ -149,37 +148,13 @@ export class GPTClient extends OnebotClient {
         }
 
         try {
-            const messages = keepContext
-                ? await this.createConversation(prompt, key)
-                : prompt;
-            const completion = await this.openai.chat.completions.create({
-                messages,
-                model: this.configuration.deployment ?? "",
-                // how many tokens gpt can return
-                max_tokens: this.configuration.tokenLimit,
-                // tools: [
-                //     {
-                //         type: "function",
-                //         function: {
-                //             function: (prompt) => this.generateImage(),
-                //             description: "generate image by Dall-e 3",
-                //             parameters: { type: "string" },
-                //         },
-                //     },
-                // ],
-            });
-            const assistant = completion.choices[0]?.message.content;
+            const assistant = await this.completion(
+                prompt,
+                keepContext ? key : undefined
+            );
             assert(assistant, `Assistant returned with empty`);
-            if (keepContext) {
-                await this.pushMessageCache(key, [
-                    {
-                        role: "assistant",
-                        content: assistant,
-                    },
-                ]);
-            }
             this.sendText(assistant, from);
-            logger.debug(`Completion processed`);
+            logger.info(`Completion processed`);
             return true;
         } catch (err) {
             if (err instanceof APIError) {
@@ -187,12 +162,47 @@ export class GPTClient extends OnebotClient {
                     `🚫 糟糕, 接口${err.status}啦! ${err.code ?? ""}`,
                     from
                 );
-                logger.error(`Completion API error:`, err);
+                logger.error(`Completion API error: %O`, err);
                 return true;
             }
-            logger.error(`Completion failed:`, err);
+            logger.error(`Completion failed: %O`, err);
             return false;
         }
+    }
+
+    async completion(
+        prompt: ChatCompletionMessageParam[],
+        contextKey?: string
+    ) {
+        const messages = contextKey
+            ? await this.createConversation(prompt, contextKey)
+            : prompt;
+        const completion = await this.openai.chat.completions.create({
+            messages,
+            model: this.configuration.deployment ?? "",
+            // how many tokens gpt can return
+            max_tokens: this.configuration.tokenLimit,
+            // tools: [
+            //     {
+            //         type: "function",
+            //         function: {
+            //             function: (prompt) => this.generateImage(),
+            //             description: "generate image by Dall-e 3",
+            //             parameters: { type: "string" },
+            //         },
+            //     },
+            // ],
+        });
+        const assistant = completion.choices[0]?.message.content;
+        if (contextKey) {
+            await this.pushMessageCache(contextKey, [
+                {
+                    role: "assistant",
+                    content: assistant,
+                },
+            ]);
+        }
+        return assistant;
     }
 
     private async createConversation(
@@ -236,18 +246,11 @@ function matchPattern(message: MessageSegment[], pattern: RegExp) {
     return first?.data.text.match(pattern);
 }
 
-function stripAt(text: string): string {
-    if (!text) {
-        return text;
-    }
-    return text.replace(/@\S+/g, "");
-}
-
 function createConversationKey(id: string) {
     return `gpt:prompt:${id}`;
 }
 
-async function imageToDataUrl(filepath: string): Promise<string> {
+export async function imageToDataUrl(filepath: string): Promise<string> {
     const base64 = await readFile(filepath, "base64");
     const url = `data:image/jpeg;base64,${base64}`;
     void rm(filepath).catch((err) => {

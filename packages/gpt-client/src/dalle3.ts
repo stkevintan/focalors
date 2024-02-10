@@ -2,6 +2,7 @@ import {
     AccessManager,
     expandTarget,
     injectAccessManager,
+    matchPattern,
     MessageSegment,
     MessageTarget2,
     OnebotClient,
@@ -14,8 +15,10 @@ import { Configuration } from "./config";
 import { getPrompt } from "./utils";
 import { ImageGenerateParams } from "openai/resources";
 import { createLogger, Logger } from "@focalors/logger";
+import { GPTClient, imageToDataUrl } from "./gpt4";
+import assert from "assert";
 
-const logger: Logger = createLogger('dalle-client');
+const logger: Logger = createLogger("dalle-client");
 
 @injectable()
 export class Dalle3Client extends OnebotClient {
@@ -23,6 +26,7 @@ export class Dalle3Client extends OnebotClient {
     constructor(
         @inject(Configuration) protected configuration: Configuration,
         @inject(OnebotWechatToken) wechat: OnebotWechat,
+        @inject(GPTClient) protected gptClient: GPTClient,
         @injectAccessManager("dalle") protected accessManager: AccessManager
     ) {
         super(wechat);
@@ -32,23 +36,6 @@ export class Dalle3Client extends OnebotClient {
             defaultHeaders: { "api-key": configuration.apiKey },
             apiKey: configuration.apiKey,
         });
-    }
-
-    private async sendFileOrImage(
-        type: "image" | "file",
-        params: Parameters<OnebotWechat["uploadFile"]>[0],
-        target: MessageTarget2
-    ) {
-        const id = await this.wechat.uploadFile(params);
-        this.send(
-            [
-                {
-                    type,
-                    data: { file_id: id },
-                },
-            ],
-            target
-        );
     }
 
     async recv(
@@ -66,25 +53,58 @@ export class Dalle3Client extends OnebotClient {
         ) {
             return false;
         }
+        if (!matchPattern(message, /^\/(img|imagine prompt:)/)) {
+            return false;
+        }
 
-        const text = getPrompt(message, this.configuration.tokenLimit);
+        const [text, reply] = getPrompt(message, this.configuration.tokenLimit);
         if (!text) {
             return false;
         }
-        if (text.startsWith("/img")) {
-            try {
-                await this.handleImage(text.substring(4), from);
-            } catch (e) {
-                logger.error("handle image error:", e);
-                if (e instanceof APIError) {
-                    this.sendText(
-                        `🚫 糟糕, 接口${e.status}啦! ${e.code ?? ""}`,
-                        from
-                    );
-                }
+        try {
+            this.sendText("🧑‍🎨 正在作图...", from);
+            if (reply?.message_type === "image") {
+                logger.info("Replied an image, invoke GPT4v first");
+                // firstly we download the image
+                const p = await this.wechat.downloadImage(reply.message_id);
+                const assistant = await this.gptClient.completion([
+                    {
+                        role: "user",
+                        content: [
+                            {
+                                type: "text",
+                                text: "describe this picture in keywords with style",
+                            },
+                            {
+                                type: "image_url",
+                                image_url: {
+                                    url: await imageToDataUrl(p),
+                                },
+                            },
+                        ],
+                    },
+                ]);
+                logger.debug("Got completion response: %s", assistant);
+                assert(assistant, `Empty completion response`);
+                await this.handleImage(`${text},${assistant}`, from);
+            } else {
+                await this.handleImage(text.replace(/^prompt:/, ""), from);
             }
-            return true;
+        } catch (e) {
+            logger.error("Processing image error: %O", e);
+            if (e instanceof APIError) {
+                this.sendText(
+                    `🚫 糟糕, 接口${e.status}啦! ${e.code ?? ""}`,
+                    from
+                );
+            } else {
+                this.sendText(
+                    `🚫 糟糕, ${e instanceof Error ? e.message : e}`,
+                    from
+                );
+            }
         }
+        return true;
 
         // if (text.startsWith("/ivar")) {
         //     try {
@@ -111,6 +131,7 @@ export class Dalle3Client extends OnebotClient {
     }
 
     async generate(prompt: string, keywords: Record<string, boolean> = {}) {
+        logger.debug(`Generating image with prompt: %s, %o`, prompt, keywords);
         const params: ImageGenerateParams = {
             prompt: `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS:${prompt}`,
             n: 1,
@@ -120,10 +141,9 @@ export class Dalle3Client extends OnebotClient {
             size: "1024x1024",
             style: keywords["natural"] ? "natural" : "vivid",
         };
-        logger.debug("Image generating params: %O", params);
-
         return await this.openai.images.generate(params);
     }
+
     private async handleImage(prompt: string, from: MessageTarget2) {
         const keywords = {
             hd: false,
@@ -140,18 +160,17 @@ export class Dalle3Client extends OnebotClient {
         }
 
         if (!prompt) {
+            logger.debug(`Generating image with empty prompt, skip...`);
             this.sendText("给点提示嘛~", from);
             return;
         }
 
-        this.sendText("🧑‍🎨 正在作图...", from);
         const ret = await this.generate(prompt, keywords);
         let hasSent = false;
         for (const image of ret.data) {
             if (image.url) {
                 hasSent = true;
-                await this.sendFileOrImage(
-                    "image",
+                await this.sendFile(
                     {
                         type: "url",
                         url: image.url!,
@@ -162,6 +181,7 @@ export class Dalle3Client extends OnebotClient {
             logger.debug("Image revised_prompt: %s", image.revised_prompt);
         }
         if (!hasSent) {
+            logger.warn("Empty image generating response");
             this.sendText("糟糕，生成失败", from);
         }
     }

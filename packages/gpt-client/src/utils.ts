@@ -1,24 +1,52 @@
 import { createLogger, Logger } from "@focalors/logger";
-import { MessageSegment, TextMessageSegment } from "@focalors/onebot-protocol";
+import {
+    MessageSegment,
+    ReplyMessageSegment,
+    TextMessageSegment,
+} from "@focalors/onebot-protocol";
 
 const logger: Logger = createLogger("gpt-client-utils");
 
-export function stripAt(text: string): string {
+export function stripCommandAndAt(text: string): string {
     if (!text) {
         return text;
     }
-    return text.replace(/@\S+/g, "");
+    return text.replace(/@\S+/g, "").replace(/^\/\w+\s+/, "");
 }
 
-export function getPrompt(message: MessageSegment[], tokenLimit?: number) {
+export function getPrompt(
+    message: MessageSegment[],
+    tokenLimit?: number
+): [prompt?: string, reply?: ReplyMessageSegment["data"]] {
     const segment = message.find(
         (m): m is TextMessageSegment => m.type === "text"
     );
-    const text = stripAt(segment?.data.text ?? "").trim();
-    if (!text || (tokenLimit && text.length > tokenLimit)) {
-        logger.warn(`Invalid text length: ${text?.length ?? 0}, skip...`);
-        return null;
+    const replySegment = message.find(
+        (m): m is ReplyMessageSegment => m.type === "reply"
+    );
+
+    const text = stripCommandAndAt(segment?.data.text ?? "").trim();
+    if (tokenLimit && text.length > tokenLimit) {
+        logger.warn(
+            `prompt token exceeded ${tokenLimit}: ${text?.length ?? 0}, skip...`
+        );
+        return [];
     }
-    logger.debug(`Processing for ${text}...`);
-    return text;
+    if (
+        replySegment &&
+        (
+            ["text", "image"] as Array<
+                ReplyMessageSegment["data"]["message_type"]
+            >
+        ).includes(replySegment.data.message_type)
+    ) {
+        logger.info("Processing prompt with context: %s", text);
+        return [text, replySegment.data];
+    }
+    if (text) {
+        logger.info(`Processing prompt: ${text}`);
+        return [text];
+    }
+    logger.warn(`Empty prompt, skip...`);
+    return [];
 }
