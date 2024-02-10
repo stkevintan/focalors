@@ -1,6 +1,8 @@
 import {
+    AccessManager,
     CardMessageSegment,
     expandTarget,
+    injectAccessManager,
     MessageSegment,
     MessageTarget2,
     OnebotClient,
@@ -28,7 +30,8 @@ const ghCard: CardMessageSegment = {
 export class RandomAbyssClient extends OnebotClient {
     constructor(
         @inject(RedisClient) protected redis: RedisClient,
-        @inject(OnebotWechatToken) wechat: OnebotWechat
+        @inject(OnebotWechatToken) wechat: OnebotWechat,
+        @injectAccessManager("abyss") protected accessManager: AccessManager
     ) {
         super(wechat);
     }
@@ -47,6 +50,7 @@ export class RandomAbyssClient extends OnebotClient {
         if (!groupId) {
             return false;
         }
+
         if (/^#\s*随机深渊杯\s*$/.test(text)) {
             await this.sendStatus(groupId, from);
             return true;
@@ -58,11 +62,32 @@ export class RandomAbyssClient extends OnebotClient {
             return true;
         }
 
-        if (/^#\s*随机深渊杯满星撒销\s*$/.test(text)) {
+        if (/^#\s*随机深渊杯(满星)?撤销\s*$/.test(text)) {
             await this.manageCandidate("del", groupId, userId!);
             await this.sendStatus(groupId, from);
             return true;
         }
+
+        const out = await this.accessManager.manage(message, userId);
+        if (out) {
+            this.sendText(out, from);
+            return true;
+        }
+        if (
+            !(await this.accessManager.check(groupId || userId!))
+        ) {
+            return false;
+        }
+        if (/^#\s*随机深渊杯清空\s*$/.test(text)) {
+            await this.redis.del(this.key(groupId));
+            return true;
+        }
+
+        // if (/^#\s*随机深渊杯设置\s+/.test(text)) {
+        //     const cnt = text.replace(/^#\s*随机深渊杯设置\s+/, '');
+            
+        // }
+
 
         return false;
     }
@@ -75,16 +100,21 @@ export class RandomAbyssClient extends OnebotClient {
 
     private async sendStatus(groupId: string, from: MessageTarget2) {
         const members = await this.getCandidates(groupId);
+        const outcome = members.length
+            ? `满星${members.length}名: ${members.join(",")}`
+            : `暂无人满星`;
         const tmpl = [
-            `第四届随机深渊杯目前满星: ${members.join(",") || "<暂无人满星>"}`,
-            `活动时间: 1月19日周五12:00 - 1月21日周日23:59角色列表:`,
-            `1 : ['荒泷一斗', '丽莎', '七七', '夜兰']`,
-            `2 : ['凯亚', '枫原万叶', '迪卢克', '莱依拉']`,
-            `3 : ['珊瑚宫心海', '柯莱', '白术', '珐露珊']`,
-            `4 : ['安柏', '夏沃蕾', '米卡', '提纳里']`,
-            `5 : ['流浪者', '妮露', '迪奥娜', '瑶瑶']`,
-            `请勿在杯赛结束前分享满星完整阵容以及具体分数`,
-            `具体规则请见公众号，开始挑战前请发送“开始挑战”到公众号成绩方为有效 (统计人数用)`,
+            `-第五届随机深渊杯目前${outcome}`,
+            `-活动时间：2月1日周四4:00 - 2月4日周日23:59`,
+            `-角色属性列表：`,
+            `1分: 草 风 雷 雷`,
+            `2分: 水 风 冰 冰`,
+            `3分: 火 草 草 冰`,
+            `4分: 冰 风 岩 岩`,
+            `5分: 冰 雷 火 水`,
+            `-角色列表请发送任意消息到公众号获取(不限时挑战)`,
+            `-具体规则请见公众号`,
+            `-请勿在活动结束前分享完整阵容以及具体分数`,
         ];
         this.send(
             [{ type: "text", data: { text: tmpl.join("\n") } }, ghCard],
