@@ -1,0 +1,12 @@
+diff --git a/dist/cjs/src/padlocal/schema-mapper/message/message-parser-refermsg.js b/dist/cjs/src/padlocal/schema-mapper/message/message-parser-refermsg.js
+index 02d259783f768c55a58e7734f8fab4b3b1c8c183..c2d7878c469f98ddffd3d98424252ec18af7b44b 100644
+--- a/dist/cjs/src/padlocal/schema-mapper/message/message-parser-refermsg.js
++++ b/dist/cjs/src/padlocal/schema-mapper/message/message-parser-refermsg.js
+@@ -62,6 +62,7 @@ const referMsgParser = async (_padLocalMessage, ret, context) => {
+     }
+     ret.type = PUPPET.types.Message.Text;
+     ret.text = `「${referMessagePayload.displayname}：${referMessageContent}」\n- - - - - - - - - - - - - - -\n${appPayload.title}`;
++    ret.rawPayload = appPayload;
+     return ret;
+ };
+ exports.referMsgParser = referMsgParser;

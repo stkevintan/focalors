@@ -15,7 +15,7 @@ import { Configuration } from "./config";
 import { getPrompt } from "./utils";
 import { ImageGenerateParams } from "openai/resources";
 import { createLogger, Logger } from "@focalors/logger";
-import { GPTClient, imageToDataUrl } from "./gpt4";
+import { GPTClient } from "./gpt4";
 import assert from "assert";
 
 const logger: Logger = createLogger("dalle-client");
@@ -66,7 +66,7 @@ export class Dalle3Client extends OnebotClient {
             if (reply?.message_type === "image") {
                 logger.info("Replied an image, invoke GPT4v first");
                 // firstly we download the image
-                const p = await this.wechat.downloadImage(reply.message_id);
+                const url = await this.wechat.downloadImage(reply.message_id);
                 const assistant = await this.gptClient.completion([
                     {
                         role: "user",
@@ -78,7 +78,7 @@ export class Dalle3Client extends OnebotClient {
                             {
                                 type: "image_url",
                                 image_url: {
-                                    url: await imageToDataUrl(p),
+                                    url,
                                 },
                             },
                         ],

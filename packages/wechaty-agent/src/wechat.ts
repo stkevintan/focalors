@@ -1,30 +1,38 @@
 import { format } from "util";
-import { singleton } from "tsyringe";
+import { inject, singleton } from "tsyringe";
 import { Contact, Message, ScanStatus, types, WechatyBuilder } from "wechaty";
 import qrcodeTerminal from "qrcode-terminal";
 import {
+    FileCache,
     FriendInfo,
     GroupInfo,
     MentionMessageSegment,
     MessageSegment,
     MessageTarget2,
     OnebotWechat,
+    UploadFileAction,
 } from "@focalors/onebot-protocol";
 import assert from "assert";
+import { FileBox } from "file-box";
 import { createLogger } from "@focalors/logger";
+import { randomUUID } from "crypto";
+import path from "path";
 
 const logger = createLogger("wechaty-agent");
 
 @singleton()
-export class Wechaty extends OnebotWechat {
+export class Wechaty implements OnebotWechat {
     protected bot = WechatyBuilder.build({ name: "focalors-bot" });
-    override get self() {
+    get self() {
         return {
             id: this.bot.currentUser.id,
             name: this.bot.currentUser.name(),
         };
     }
-    override async start() {
+
+    constructor(@inject(FileCache) protected fileCache: FileCache) {}
+
+    async start() {
         logger.info(
             "wechaty starts with puppet:",
             process.env["WECHATY_PUPPET"]
@@ -32,14 +40,20 @@ export class Wechaty extends OnebotWechat {
         this.bot.on("scan", onScan);
         await this.bot.start();
         await this.bot.ready();
+        await new Promise<void>((res) =>
+            this.bot.once("login", () => {
+                logger.info("wechaty logged in");
+                res();
+            })
+        );
         logger.info("wechat started");
     }
 
-    override async stop() {
+    async stop() {
         await this.bot.logout();
     }
 
-    override subscribe(
+    subscribe(
         callback: (message: MessageSegment[], from: MessageTarget2) => void
     ) {
         this.bot.on("message", async (message) => {
@@ -60,12 +74,15 @@ export class Wechaty extends OnebotWechat {
                     },
                 }))
             );
+
+            logger.debug(
+                "Recv message %s, payload: %O",
+                types.Message[message.type()],
+                message.payload
+            );
             switch (message.type()) {
                 case types.Message.Text:
-                    segment.push({
-                        type: "text",
-                        data: { text: message.text() },
-                    });
+                    segment.push(...this.parseText(message));
             }
             callback(
                 segment,
@@ -73,8 +90,78 @@ export class Wechaty extends OnebotWechat {
             );
         });
     }
+    private parseText(message: Message): MessageSegment[] {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const raw = (message.payload as any)?.rawPayload;
+        if (!raw?.refermsg) {
+            return [
+                {
+                    type: "text",
+                    data: { text: message.text() },
+                },
+            ];
+        }
+        const referMessagePayload = raw.refermsg;
+        const referMessageType = parseInt(referMessagePayload.type);
+        logger.debug("Got refer message: %O", referMessagePayload);
+        return [
+            {
+                type: "reply",
+                data: {
+                    user_id: referMessagePayload.chatusr,
+                    message_id: referMessagePayload.svrid,
+                    message_content: referMessagePayload.content,
+                    message_type:
+                        referMessageType === 3
+                            ? "image"
+                            : referMessageType === 1
+                            ? "text"
+                            : "others",
+                },
+            },
+            {
+                type: "text",
+                data: {
+                    text: raw.title ?? "",
+                },
+            },
+        ];
+    }
 
-    override async getFriends(): Promise<FriendInfo[]> {
+    async getGroupMembers(roomId: string): Promise<Record<string, string>> {
+        const room = await this.bot.Room.find({ id: roomId });
+        const members = await room?.memberAll();
+        if (!members) {
+            return {};
+        }
+        // get alias: room.alias(member);
+        return Object.fromEntries(
+            members.map((member) => [member.id, member.name()])
+        );
+    }
+
+    async uploadFile(file: UploadFileAction["req"]): Promise<string> {
+        return await this.fileCache.cache(file);
+    }
+
+    async downloadImage(msgId: string): Promise<string> {
+        logger.info(`Downloading image in msgId: ${msgId}`);
+        const cachedFile = await this.fileCache.getByMessage(msgId);
+        if (cachedFile) {
+            logger.debug(`Downloading image from cache`);
+            const filebox = await this.toFileBox(cachedFile, ".jpg");
+            if (filebox) {
+                return await filebox.toDataURL();
+            }
+        }
+        const msg = await this.bot.Message.find({ id: msgId });
+        assert(msg, `Failed to find message by id: ${msgId}`);
+        logger.debug("Downloaded target message: %O", msg.payload);
+        const filebox = await msg.toFileBox();
+        return await filebox.toDataURL();
+    }
+
+    async getFriends(): Promise<FriendInfo[]> {
         const friends = await this.bot.Contact.findAll();
         return await Promise.all(
             friends.map(async (friend) => ({
@@ -87,7 +174,7 @@ export class Wechaty extends OnebotWechat {
         );
     }
 
-    override async getGroups(): Promise<GroupInfo[]> {
+    async getGroups(): Promise<GroupInfo[]> {
         const groups = await this.bot.Room.findAll();
         return await Promise.all(
             groups.map(async (group) => ({
@@ -98,10 +185,7 @@ export class Wechaty extends OnebotWechat {
         );
     }
 
-    override async getFriend(
-        userId: string,
-        groupId?: string
-    ): Promise<FriendInfo> {
+    async getFriend(userId: string, groupId?: string): Promise<FriendInfo> {
         const user = await this.bot.Contact.find({ id: userId });
         assert.ok(user != null, `user ${userId} in ${groupId} is not found`);
         return {
@@ -112,7 +196,7 @@ export class Wechaty extends OnebotWechat {
         };
     }
 
-    override async send(
+    async send(
         messages: MessageSegment[],
         to: string | { groupId: string; userId?: string }
     ) {
@@ -155,14 +239,93 @@ export class Wechaty extends OnebotWechat {
                     );
                     repliedMessage = undefined;
                     break;
-                case "image":
-                case "wx.emoji":
-                    // unable to reply with an image in wechat
-                    await target.say(message.data.file_id);
+                case "image": {
+                    const filebox = await this.toFileBox(
+                        message.data.file_id,
+                        ".jpg"
+                    );
+                    const msg = await target.say(filebox ?? "[图片]");
+                    await this.linkResource(msg, message.data.file_id);
                     break;
+                }
+                case "file": {
+                    const filebox = await this.toFileBox(
+                        message.data.file_id,
+                        ".dat"
+                    );
+                    const msg = await target.say(filebox ?? "[文件]");
+                    await this.linkResource(msg, message.data.file_id);
+                    break;
+                }
+                case "wx.emoji": {
+                    const filebox = await this.toFileBox(
+                        message.data.file_id,
+                        ".gif"
+                    );
+                    const msg = await target.say(filebox ?? "[表情]");
+                    await this.linkResource(msg, message.data.file_id);
+                    break;
+                }
+                case "card": {
+                    const link = new this.bot.UrlLink({
+                        thumbnailUrl: message.data.thumburl,
+                        description: message.data.digest,
+                        title: message.data.title,
+                        url: message.data.url,
+                    });
+                    await target.say(link);
+                }
             }
         }
         return true;
+    }
+
+    private async linkResource(message: Message | void, fileId: string) {
+        if (message) {
+            const ok = await this.fileCache.addMessageLink(message.id, fileId);
+            logger.debug(
+                "%s to link message %s with file %s",
+                ok ? "Succeeded" : "Failed",
+                message.id,
+                fileId
+            );
+        }
+    }
+
+    private async toFileBox(
+        idOrPayload: string | UploadFileAction["req"],
+        defaultExt = ".dat"
+    ): Promise<FileBox | undefined> {
+        let payload: UploadFileAction["req"] | undefined = undefined;
+        if (typeof idOrPayload === "string") {
+            payload = await this.fileCache.get(idOrPayload);
+        } else {
+            payload = idOrPayload;
+        }
+
+        if (!payload) {
+            return undefined;
+        }
+
+        let name = payload.name ?? randomUUID();
+        if (!path.extname(name)) {
+            name += defaultExt;
+        }
+
+        switch (payload.type) {
+            case "url":
+                return FileBox.fromUrl(payload.url, {
+                    headers: payload.headers,
+                    name,
+                });
+            case "data":
+                return FileBox.fromBase64(payload.data, name);
+            case "path":
+                return FileBox.fromFile(payload.path, name);
+            default:
+                logger.warn("Cannot upload file:", payload);
+                return undefined;
+        }
     }
 }
 

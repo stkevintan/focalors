@@ -18,7 +18,6 @@ import assert from "assert";
 import { ChatCompletionMessageParam } from "openai/resources";
 import { APIError } from "openai/error";
 import { getPrompt, stripCommandAndAt } from "./utils";
-import { readFile, rm } from "fs/promises";
 import { createLogger, Logger } from "@focalors/logger";
 
 const logger: Logger = createLogger("gpt-client");
@@ -126,7 +125,7 @@ export class GPTClient extends OnebotClient {
                     keepContext = false;
                     this.sendText("🔍 正在识图...", from);
                     // firstly we download the image
-                    const p = await this.wechat.downloadImage(id);
+                    const url = await this.wechat.downloadImage(id);
                     prompt[0].content = [
                         {
                             type: "text",
@@ -135,7 +134,7 @@ export class GPTClient extends OnebotClient {
                         {
                             type: "image_url",
                             image_url: {
-                                url: await imageToDataUrl(p),
+                                url,
                             },
                         },
                     ];
@@ -250,11 +249,3 @@ function createConversationKey(id: string) {
     return `gpt:prompt:${id}`;
 }
 
-export async function imageToDataUrl(filepath: string): Promise<string> {
-    const base64 = await readFile(filepath, "base64");
-    const url = `data:image/jpeg;base64,${base64}`;
-    void rm(filepath).catch((err) => {
-        logger.error("failed to remove file:", filepath, err);
-    });
-    return url;
-}

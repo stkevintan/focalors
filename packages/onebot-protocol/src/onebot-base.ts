@@ -96,6 +96,10 @@ export interface OnebotWechat extends AsyncService {
         withAvatar?: boolean
     ): Promise<FriendInfo>;
     uploadFile(file: UploadFileAction["req"]): Promise<string>;
+    /**
+     * download image as data url
+     * @param msgId message id
+     */
     downloadImage(msgId: string): Promise<string>;
 }
 
