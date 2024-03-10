@@ -9,6 +9,7 @@ import {
     OnebotWechat,
     OnebotWechatToken,
     RedisClient,
+    ReplyMessageSegment,
     TextMessageSegment,
 } from "@focalors/onebot-protocol";
 import { inject, injectable } from "tsyringe";
@@ -35,7 +36,10 @@ export class RandomAbyssClient extends OnebotClient {
     ) {
         super(wechat);
     }
-    private key = (groupId: string) => `client:random-abyss:${groupId}`;
+    private key(groupId: string) {
+        return `client:random-abyss:${groupId}`;
+    }
+    private tplKey = `client:random-abyss-template`;
     async recv(
         message: MessageSegment[],
         from: MessageTarget2
@@ -43,54 +47,71 @@ export class RandomAbyssClient extends OnebotClient {
         const text = message.find(
             (m): m is TextMessageSegment => m.type === "text"
         )?.data.text;
+
         if (!text) {
             return false;
         }
+
         const { groupId, userId } = expandTarget(from);
-        if (!groupId) {
-            return false;
-        }
-
-        if (/^#\s*随机深渊杯\s*$/.test(text)) {
-            await this.sendStatus(groupId, from);
-            return true;
-        }
-
-        if (/^#\s*随机深渊杯满星\s*$/.test(text)) {
-            await this.manageCandidate("add", groupId, userId!);
-            await this.sendStatus(groupId, from);
-            return true;
-        }
-
-        if (/^#\s*随机深渊杯(满星)?撤销\s*$/.test(text)) {
-            await this.manageCandidate("del", groupId, userId!);
-            await this.sendStatus(groupId, from);
-            return true;
-        }
-
         const out = await this.accessManager.manage(message, userId);
         if (out) {
             this.sendText(out, from);
             return true;
         }
-        if (
-            !(await this.accessManager.check(groupId || userId!))
-        ) {
+
+        if (groupId) {
+            if (/^#\s*随机深渊杯\s*$/.test(text)) {
+                await this.sendStatus(groupId, from);
+                return true;
+            }
+
+            if (/^#\s*随机深渊杯满星\s*$/.test(text)) {
+                await this.manageCandidate("add", groupId, userId!);
+                await this.sendStatus(groupId, from);
+                return true;
+            }
+
+            if (/^#\s*随机深渊杯(满星)?撤销\s*$/.test(text)) {
+                await this.manageCandidate("del", groupId, userId!);
+                await this.sendStatus(groupId, from);
+                return true;
+            }
+
+            if (/^#\s*随机深渊杯清空\s*$/.test(text)) {
+                await this.redis.del(this.key(groupId));
+                this.sendText("已清空", from);
+                return true;
+            }
+        }
+
+        if (!(await this.accessManager.check(userId, groupId))) {
             return false;
         }
-        if (/^#\s*随机深渊杯清空\s*$/.test(text)) {
-            await this.redis.del(this.key(groupId));
+
+        if (/^#\s*随机深渊杯设置\s*$/.test(text)) {
+            const reply = message.find(
+                (m): m is ReplyMessageSegment => m.type === "reply"
+            )?.data;
+            if (!reply) {
+                this.sendText("请回复模板消息", from);
+                return true;
+            }
+            if (reply.message_type !== "text" || !reply.message_content) {
+                this.sendText("请回复文字消息", from);
+                return true;
+            }
+            const template = `${reply.message_content}`;
+            await this.redis.set(this.tplKey, template);
+            this.sendText("设置成功", from);
+            if (groupId) {
+                this.sendStatus(groupId, from);
+            }
             return true;
         }
 
-        // if (/^#\s*随机深渊杯设置\s+/.test(text)) {
-        //     const cnt = text.replace(/^#\s*随机深渊杯设置\s+/, '');
-            
-        // }
-
-
         return false;
     }
+
     async manageCandidate(op: "add" | "del", groupId: string, userId: string) {
         await this.redis[op === "add" ? "sAdd" : "sRem"](
             this.key(groupId),
@@ -103,29 +124,16 @@ export class RandomAbyssClient extends OnebotClient {
         const outcome = members.length
             ? `满星${members.length}名: ${members.join(",")}`
             : `暂无人满星`;
-        const tmpl = [
-            `-第五届随机深渊杯目前${outcome}`,
-            `-活动时间：2月1日周四4:00 - 2月4日周日23:59`,
-            `-角色属性列表：`,
-            `1分: 草 风 雷 雷`,
-            `2分: 水 风 冰 冰`,
-            `3分: 火 草 草 冰`,
-            `4分: 冰 风 岩 岩`,
-            `5分: 冰 雷 火 水`,
-            `-角色列表请发送任意消息到公众号获取(不限时挑战)`,
-            `-具体规则请见公众号`,
-            `-请勿在活动结束前分享完整阵容以及具体分数`,
-        ];
-        this.send(
-            [{ type: "text", data: { text: tmpl.join("\n") } }, ghCard],
-            from
-        );
+        const tmpl =
+            (await this.redis.get<string>(this.tplKey)) ??
+            `随机深渊杯,目前{candidates}`;
+        const text = tmpl.replace(/{\s*candidates\s*}/, outcome);
+        this.send([{ type: "text", data: { text } }, ghCard], from);
     }
 
     private async getCandidates(groupId: string) {
         const key = this.key(groupId);
         const ids = await this.redis.sEntries(key);
-        await this.redis.expire(key, 4 * 60 * 60 * 24, "NX");
         const memberDict = await this.wechat.getGroupMembers(groupId);
         const users = [...ids].map((id) => memberDict[id] ?? id);
         return users;

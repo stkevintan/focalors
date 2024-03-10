@@ -15,7 +15,7 @@ export interface AccessManager {
         userId: string | undefined
     ): Promise<string | null>;
 
-    check(id: string): Promise<boolean>;
+    check(userId?: string, groupId?: string): Promise<boolean>;
 }
 
 @injectable()
@@ -119,12 +119,15 @@ class AccessManagerImpl implements AccessManager {
                 assert(false, "impossible");
         }
     }
-    async check(id: string): Promise<boolean> {
-        if (id === this.configuration.masterId) {
+    async check(userId?: string, groupId?: string): Promise<boolean> {
+        if (userId === this.configuration.masterId) {
             return true;
         }
         const key = this.getStorageKey("allowed");
-        return await this.redis.sIn(key, id);
+        return (
+            (!!userId && (await this.redis.sIn(key, userId))) ||
+            (!!groupId && (await this.redis.sIn(key, groupId)))
+        );
     }
 }
 

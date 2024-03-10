@@ -15,7 +15,7 @@ import { Configuration } from "./config";
 import { getPrompt } from "./utils";
 import { ImageGenerateParams } from "openai/resources";
 import { createLogger, Logger } from "@focalors/logger";
-import { GPTClient, imageToDataUrl } from "./gpt4";
+import { GPTClient } from "./gpt4";
 import assert from "assert";
 
 const logger: Logger = createLogger("dalle-client");
@@ -48,9 +48,7 @@ export class Dalle3Client extends OnebotClient {
             this.sendText(out, from);
             return true;
         }
-        if (
-            !(await this.accessManager.check(target.groupId || target.userId!))
-        ) {
+        if (!(await this.accessManager.check(target.userId, target.groupId))) {
             return false;
         }
         if (!matchPattern(message, /^\/(img|imagine prompt:)/)) {
@@ -66,7 +64,7 @@ export class Dalle3Client extends OnebotClient {
             if (reply?.message_type === "image") {
                 logger.info("Replied an image, invoke GPT4v first");
                 // firstly we download the image
-                const p = await this.wechat.downloadImage(reply.message_id);
+                const url = await this.wechat.downloadImage(reply.message_id);
                 const assistant = await this.gptClient.completion([
                     {
                         role: "user",
@@ -78,7 +76,7 @@ export class Dalle3Client extends OnebotClient {
                             {
                                 type: "image_url",
                                 image_url: {
-                                    url: await imageToDataUrl(p),
+                                    url,
                                 },
                             },
                         ],
@@ -87,6 +85,11 @@ export class Dalle3Client extends OnebotClient {
                 logger.debug("Got completion response: %s", assistant);
                 assert(assistant, `Empty completion response`);
                 await this.handleImage(`${text},${assistant}`, from);
+            } else if (reply?.message_type === "text") {
+                await this.handleImage(
+                    `${reply.message_content}\n${text.replace(/^prompt:/, "")}`,
+                    from
+                );
             } else {
                 await this.handleImage(text.replace(/^prompt:/, ""), from);
             }

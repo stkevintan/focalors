@@ -60,7 +60,7 @@ export abstract class OnebotClient implements AsyncService {
     protected async sendFile(
         params: Parameters<OnebotWechat["uploadFile"]>[0],
         target: MessageTarget2,
-        type: "image" | "file" = "image"
+        type: "image" | "file" | "wx.emoji" = "image"
     ) {
         const id = await this.wechat.uploadFile(params);
         this.send(
@@ -96,6 +96,10 @@ export interface OnebotWechat extends AsyncService {
         withAvatar?: boolean
     ): Promise<FriendInfo>;
     uploadFile(file: UploadFileAction["req"]): Promise<string>;
+    /**
+     * download image as data url
+     * @param msgId message id
+     */
     downloadImage(msgId: string): Promise<string>;
 }
 

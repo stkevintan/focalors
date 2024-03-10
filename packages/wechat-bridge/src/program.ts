@@ -39,7 +39,10 @@ export class Program implements AsyncService {
         await this.redis.start();
         this.wechat.subscribe(async (message, target) => {
             for (const client of this.clients) {
-                if (await client.recv(message, target)) {
+                if (await client.recv(message, target).catch(err => {
+                    logger.error("Failed to execute recv: %O", err);
+                    return false;
+                })) {
                     return;
                 }
             }

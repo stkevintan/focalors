@@ -3,6 +3,7 @@ import { MessageType, WcfMessage } from "./wcf-message";
 import { WcfConfiguration } from "./config";
 import assert from "assert";
 import {
+    FileCache,
     FriendInfo,
     GroupInfo,
     MentionMessageSegment,
@@ -14,11 +15,11 @@ import {
 } from "@focalors/onebot-protocol";
 import { Contact, UserInfo, Wcferry, FileRef } from "@wcferry/core";
 import { WcfWSServer } from "@wcferry/ws";
-import { randomUUID } from "crypto";
 import os from "os";
 import path from "path";
 import { ensureDirSync } from "@wcferry/core/src/lib/utils";
 import { createLogger } from "@focalors/logger";
+import { readFile, rm } from "fs/promises";
 
 const logger = createLogger("wcf-agent");
 
@@ -33,7 +34,8 @@ export class WechatFerry implements OnebotWechat {
 
     constructor(
         @inject(WcfConfiguration) protected configuration: WcfConfiguration,
-        @inject(RedisClient) protected redis: RedisClient
+        @inject(RedisClient) protected redis: RedisClient,
+        @inject(FileCache) protected fileCache: FileCache
     ) {
         this.bot = new Wcferry(this.configuration.wcf);
     }
@@ -284,23 +286,11 @@ export class WechatFerry implements OnebotWechat {
     }
 
     async uploadFile(file: UploadFileAction["req"]): Promise<string> {
-        const id = file.name ?? randomUUID();
-        const key = createRedisFileKey(id);
-        if (await this.redis.exists(key)) {
-            await this.redis.expire(key, 20 * 60);
-            return id;
-        }
-
-        await this.redis.set(key, file, {
-            EX: 20 * 60,
-        });
-
-        return id;
+        return await this.fileCache.cache(file);
     }
 
     private async fetchCachedFile(id: string): Promise<FileRef | undefined> {
-        const key = createRedisFileKey(id);
-        const payload = await this.redis.get<UploadFileAction["req"]>(key);
+        const payload = await this.fileCache.get(id);
         if (!payload) {
             return undefined;
         }
@@ -326,7 +316,7 @@ export class WechatFerry implements OnebotWechat {
         const p = await this.bot.downloadImage(msgid, this.dlCache);
         assert(!!p, `Failed to donwload image`);
         logger.debug("Downloaded wechat image to '%s'", p);
-        return p;
+        return await imageToDataUrl(p);
     }
 
     private readonly dlCache = path.join(os.tmpdir(), ".wcferry-downloads");
@@ -411,6 +401,11 @@ export class WechatFerry implements OnebotWechat {
     }
 }
 
-function createRedisFileKey(id: string) {
-    return `wechat:cache:file:${id}`;
+export async function imageToDataUrl(filepath: string): Promise<string> {
+    const base64 = await readFile(filepath, "base64");
+    const url = `data:image/jpeg;base64,${base64}`;
+    void rm(filepath).catch((err) => {
+        logger.error("failed to remove file:", filepath, err);
+    });
+    return url;
 }

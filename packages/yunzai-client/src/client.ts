@@ -91,18 +91,26 @@ export class YunzaiClient extends OnebotClient {
         logger.info("yunzai client started");
     }
 
-    private async connect(): Promise<ws> {
+    private async connect(): Promise<ws | undefined> {
         // if connection existed
         if (this.client && this.client.readyState < ws.CLOSING) {
             logger.warn("duplicate call of connect detected.");
             return this.client;
         }
-        this.client = new ws(this.configuration.ws.endpoint);
-        this.client.on("message", this.onClientMessage.bind(this));
-        // wait for websocket opened
-        await waitFor(this.client, "open");
-        this.ping();
-        return this.client;
+        try {
+            this.client = new ws(this.configuration.ws.endpoint);
+            this.client.on("message", this.onClientMessage.bind(this));
+            this.client.on('error', err => {
+                logger.error("connection on error: %O", err);
+            });
+            // wait for websocket opened
+            await waitFor(this.client, "open");
+            this.ping();
+            return this.client;
+        } catch (err) {
+            logger.error(`failed to connect to ComWechat: %O`, err);
+            return undefined;
+        }
     }
 
     override async stop() {
@@ -144,6 +152,14 @@ export class YunzaiClient extends OnebotClient {
         });
     }
 
+    protected async ensureClient() {
+        // try to reconnect if client readystate is close or closing
+        if (!this.client || this.client.readyState > ws.OPEN) {
+            return await this.connect();
+        }
+        return undefined;
+    }
+
     private async onClientMessage(data: ws.RawData) {
         if (!data) {
             logger.warn("empty message received, stop processing");
@@ -176,7 +192,7 @@ export class YunzaiClient extends OnebotClient {
     }
 
     private rawSend(event: Event | ActionRes<Action>): void {
-        if (!this.client) {
+        if (!this.client || this.client.readyState !== ws.OPEN) {
             logger.error("Cleint: no connection available");
             return;
         }
@@ -191,10 +207,7 @@ export class YunzaiClient extends OnebotClient {
         message: MessageSegment[],
         from: MessageTarget2
     ): Promise<boolean> {
-        // try to reconnect if client readystate is close or closing
-        if (!this.client || this.client.readyState > ws.OPEN) {
-            await this.connect();
-        }
+        await this.ensureClient();
         const segment = message.find(
             (m): m is TextMessageSegment => m.type === "text"
         );

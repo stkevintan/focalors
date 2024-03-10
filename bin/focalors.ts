@@ -4,16 +4,16 @@ dotenv.config();
 
 import { rootLogger } from "@focalors/logger";
 import { Program } from "@focalors/wechat-bridge";
-import { WechatFerry } from "@focalors/wechat-ferry-agent";
 import { YunzaiClient } from "@focalors/yunzai-client";
 import { GPTClient, Dalle3Client } from "@focalors/gpt-client";
 import { RandomAbyssClient, SystemClient } from "@focalors/custom-client";
+import { Wechaty } from "@focalors/wechaty-agent";
 
 
 async function main() {
     try {
         const program = Program.create(
-            WechatFerry, // <--- master
+            Wechaty, // <--- master
             // following slaves
             SystemClient,
             RandomAbyssClient,
