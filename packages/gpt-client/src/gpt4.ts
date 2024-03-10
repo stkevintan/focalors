@@ -52,7 +52,7 @@ export class GPTClient extends OnebotClient {
         }
 
         if (
-            !(await this.accessManager.check(target.groupId || target.userId!))
+            !(await this.accessManager.check(target.userId, target.groupId))
         ) {
             return false;
         }

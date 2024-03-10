@@ -48,9 +48,7 @@ export class Dalle3Client extends OnebotClient {
             this.sendText(out, from);
             return true;
         }
-        if (
-            !(await this.accessManager.check(target.groupId || target.userId!))
-        ) {
+        if (!(await this.accessManager.check(target.userId, target.groupId))) {
             return false;
         }
         if (!matchPattern(message, /^\/(img|imagine prompt:)/)) {
@@ -87,6 +85,11 @@ export class Dalle3Client extends OnebotClient {
                 logger.debug("Got completion response: %s", assistant);
                 assert(assistant, `Empty completion response`);
                 await this.handleImage(`${text},${assistant}`, from);
+            } else if (reply?.message_type === "text") {
+                await this.handleImage(
+                    `${reply.message_content}\n${text.replace(/^prompt:/, "")}`,
+                    from
+                );
             } else {
                 await this.handleImage(text.replace(/^prompt:/, ""), from);
             }

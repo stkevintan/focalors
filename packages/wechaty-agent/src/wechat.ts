@@ -17,6 +17,7 @@ import { FileBox } from "file-box";
 import { createLogger } from "@focalors/logger";
 import { randomUUID } from "crypto";
 import path from "path";
+import { WechatMessageType } from "./types";
 
 const logger = createLogger("wechaty-agent");
 
@@ -37,8 +38,8 @@ export class Wechaty implements OnebotWechat {
             "wechaty starts with puppet:",
             process.env["WECHATY_PUPPET"]
         );
-        this.bot.on("scan", onScan);
         await this.bot.start();
+        this.bot.on("scan", onScan);
         await this.bot.ready();
         await new Promise<void>((res) =>
             this.bot.once("login", () => {
@@ -51,6 +52,7 @@ export class Wechaty implements OnebotWechat {
 
     async stop() {
         await this.bot.logout();
+        await this.bot.stop();
     }
 
     subscribe(
@@ -112,9 +114,10 @@ export class Wechaty implements OnebotWechat {
                     message_id: referMessagePayload.svrid,
                     message_content: referMessagePayload.content,
                     message_type:
-                        referMessageType === 3
+                        referMessageType === WechatMessageType.Image ||
+                        referMessageType === WechatMessageType.Emoticon
                             ? "image"
-                            : referMessageType === 1
+                            : referMessageType === WechatMessageType.Text
                             ? "text"
                             : "others",
                 },
@@ -164,13 +167,15 @@ export class Wechaty implements OnebotWechat {
     async getFriends(): Promise<FriendInfo[]> {
         const friends = await this.bot.Contact.findAll();
         return await Promise.all(
-            friends.map(async (friend) => ({
-                user_id: friend.id,
-                user_name: friend.name(),
-                user_displayname: "",
-                user_remark: (await friend.alias()) ?? "",
-                "wx.avatar": friend.payload?.avatar,
-            }))
+            friends
+                .filter((f) => f.friend())
+                .map(async (friend) => ({
+                    user_id: friend.id,
+                    user_name: friend.name(),
+                    user_displayname: "",
+                    user_remark: (await friend.alias()) ?? "",
+                    "wx.avatar": friend.payload?.avatar,
+                }))
         );
     }
 

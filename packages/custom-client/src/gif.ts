@@ -54,7 +54,8 @@ export class GifClient extends OnebotClient {
                             url: `https://sorry.xuty.cc/${matchRet[1]}`,
                             name: `${randomUUID()}.gif`,
                         },
-                        from
+                        from,
+                        'wx.emoji'
                     );
                 } else {
                     sendUsage();
