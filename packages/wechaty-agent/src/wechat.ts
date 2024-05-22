@@ -66,7 +66,7 @@ export class Wechaty implements OnebotWechat {
             }
             const room = message.room();
             const segment: MessageSegment[] = [];
-            const mentions = await message.mentionList();
+            const mentions = await message.mentionList().catch(() => []);
             segment.push(
                 ...mentions.map<MentionMessageSegment>((m) => ({
                     type: "mention",
