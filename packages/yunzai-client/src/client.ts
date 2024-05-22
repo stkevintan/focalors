@@ -103,6 +103,9 @@ export class YunzaiClient extends OnebotClient {
             this.client.on('error', err => {
                 logger.error("connection on error: %O", err);
             });
+            this.client.on('close', (code, reason) => {
+                logger.info("connection closed: %s, %s", code, reason);
+            });
             // wait for websocket opened
             await waitFor(this.client, "open");
             this.ping();
