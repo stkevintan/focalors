@@ -198,7 +198,8 @@ export class YunzaiClient extends OnebotClient {
         }
         this.client.send(JSON.stringify(event), (err: unknown) => {
             if (err) {
-                logger.error("Client send error", err);
+                console.trace();
+                logger.error("Client send error %O", err);
             }
         });
     }
