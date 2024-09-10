@@ -143,11 +143,13 @@ export class JanDanClient extends OnebotClient {
                 : new Date().getTime() - 5 * 60 * 60 * 1000;
 
             let sentTime = lastSentTime;
+            let cnt = 0;
             for (const comment of resp.comments) {
                 const commentTime = new Date(comment.comment_date).getTime();
                 if (commentTime <= lastSentTime) {
                     break;
                 }
+                cnt++;
                 for (const pic of comment.pics) {
                     await this.sendFile(
                         {
@@ -167,6 +169,9 @@ export class JanDanClient extends OnebotClient {
             }
 
             if (sentTime > lastSentTime) await this.redis.set(key, sentTime);
+            if (cnt === 0) {
+                this.sendText("暂无更新, 请稍候再试...", from);
+            }
         } catch (err) {
             logger.error(err);
             this.sendText("糟糕，煎蛋获取失败", from);
