@@ -1,3 +1,4 @@
+import { createLogger } from "@focalors/logger";
 import EventEmitter from "events";
 import { inject, InjectionToken } from "tsyringe";
 import { AsyncService } from "./common";
@@ -19,6 +20,7 @@ export type AbstractActionMap = Omit<
 export const OnebotWechatToken: InjectionToken<OnebotWechat> = "onebot_wechat";
 export const OnebotClientToken: InjectionToken<OnebotClient> = "onebot_client";
 
+const logger = createLogger("onebot-client");
 export abstract class OnebotClient implements AsyncService {
     private eventSub = new EventEmitter();
     constructor(@inject(OnebotWechatToken) protected wechat: OnebotWechat) {
@@ -32,10 +34,16 @@ export abstract class OnebotClient implements AsyncService {
     subscribe(
         callback: (message: MessageSegment[], target: MessageTarget2) => void
     ): void {
+        let prev: Promise<unknown> = Promise.resolve();
         this.eventSub.on(
             "message",
             (params: { message: MessageSegment[]; target: MessageTarget2 }) => {
-                callback(params.message, params.target);
+                prev = prev
+                    .then(() => callback(params.message, params.target))
+                    .catch((err) => {
+                        logger.error("Failed to execute callback: %O", err);
+                        return null;
+                    });
             }
         );
     }
