@@ -8,6 +8,7 @@ import { YunzaiClient } from "@focalors/yunzai-client";
 import { GPTClient, Dalle3Client } from "@focalors/gpt-client";
 import { RandomAbyssClient, SystemClient } from "@focalors/custom-client";
 import { Wechaty } from "@focalors/wechaty-agent";
+import { JanDanClient } from "../packages/custom-client/src";
 
 
 async function main() {
@@ -16,6 +17,7 @@ async function main() {
             Wechaty, // <--- master
             // following slaves
             SystemClient,
+            JanDanClient,
             RandomAbyssClient,
             YunzaiClient,
             Dalle3Client,

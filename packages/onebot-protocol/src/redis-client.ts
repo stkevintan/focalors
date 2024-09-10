@@ -58,6 +58,19 @@ export class RedisClient implements AsyncService {
         return await this.client.sIsMember(key, JSON.stringify(value));
     }
 
+    async hGet(key: string, field: string) {
+        const v = await this.client.hGet(key, field);
+        return v ? JSON.parse(v) : undefined;
+    }
+
+    async hSet(key: string, field: string, value: unknown) {
+       return await this.client.hSet(key, field, JSON.stringify(value));
+    }
+
+    async hDel(key: string, field: string) {
+        return await this.client.hDel(key, field);
+    }
+
     private client: RedisClientType;
     constructor(@inject(Configuration) private configuration: Configuration) {
         assert(this.configuration.redisUri, "redisURI is empty");

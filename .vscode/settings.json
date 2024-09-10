@@ -1,5 +1,5 @@
 {
-    "typescript.tsdk": "node_modules\\typescript\\lib",
+    "typescript.tsdk": "node_modules/typescript/lib",
     "rust-analyzer.procMacro.ignored": { "napi-derive": ["napi"] },
     "unitTestHelper.program": "${workspaceRoot}\\node_modules\\vitest\\vitest.mjs",
     "unitTestHelper.debugArgs": ["-t ${testName}"],
