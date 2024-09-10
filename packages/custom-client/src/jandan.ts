@@ -13,7 +13,6 @@ import {
 } from "@focalors/onebot-protocol";
 import { inject, injectable } from "tsyringe";
 
-
 const logger = createLogger("jandan-client");
 
 const headers = {
@@ -78,10 +77,11 @@ export class JanDanClient extends OnebotClient {
         if (!(await this.accessManager.check(userId, groupId))) {
             return false;
         }
+
         const timerKey = `client:jandan:timer`;
+        const id = groupId ?? userId!;
 
         if (/^#\s*煎蛋开启定时转发\s*$/i.test(text)) {
-            const id = groupId ?? userId!;
             const status = (await this.redis.hGet(timerKey, id)) ?? 0;
             if (status === JandanTimerStatus.on) {
                 this.sendText("已开启", from);
@@ -95,24 +95,34 @@ export class JanDanClient extends OnebotClient {
                 return true;
             }
 
-            for (;;) {
-                await this.sendJandan(from);
-                await new Promise((r) => setTimeout(r, 1000 * 60 * 60 * 60));
-                const currentStatus = await this.redis.hGet(timerKey, id);
-                if (JandanTimerStatus.stopped === currentStatus) {
-                    await this.redis.hDel(timerKey, id);
+            void (async () => {
+                for (;;) {
+                    await this.sendJandan(from);
+                    await new Promise((r) =>
+                        setTimeout(r, 1000 * 60 * 60 * 60)
+                    );
+                    const currentStatus = await this.redis.hGet(timerKey, id);
+                    if (JandanTimerStatus.stopped === currentStatus) {
+                        await this.redis.hDel(timerKey, id);
+                    }
+                    if (JandanTimerStatus.on !== currentStatus) {
+                        break;
+                    }
                 }
-                if (JandanTimerStatus.on !== currentStatus) {
-                    break;
-                }
-            }
+            })();
             return true;
         }
 
         if (/^#\s*煎蛋关闭定时转发\s*$/i.test(text)) {
-            const id = groupId ?? userId!;
             await this.redis.hSet(timerKey, id, JandanTimerStatus.stopped);
             this.sendText("已关闭", from);
+            return true;
+        }
+
+        if (/^#\s*煎蛋重置\s*$/i.test(text)) {
+            await this.redis.del(this.key(id));
+            await this.redis.hDel(timerKey, id);
+            this.sendText("煎蛋状态已重置", from);
             return true;
         }
         return false;
