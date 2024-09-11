@@ -18,6 +18,7 @@ import { createLogger } from "@focalors/logger";
 import { randomUUID } from "crypto";
 import path from "path";
 import { WechatMessageType } from "./types";
+import { gif2Mp4 } from "./gif2Mp4";
 
 const logger = createLogger("wechaty-agent");
 
@@ -267,19 +268,7 @@ export class Wechaty implements OnebotWechat {
                         message.data.file_id,
                         ".gif"
                     );
-                    if (filebox) {
-                        await filebox.ready();
-                        const payload = {
-                            cdnurl: "",
-                            md5: "",
-                            len: filebox.size,
-                            type: 2,
-                            width: 520,
-                            height: 520,
-                        };
-                        filebox.metadata = payload;
-                        filebox.mimeType = "emoticon";
-                    }
+                    const mp4 = await gif2Mp4(filebox);
                     const msg = await target.say(filebox ?? "[表情]");
                     await this.linkResource(msg, message.data.file_id);
                     break;
