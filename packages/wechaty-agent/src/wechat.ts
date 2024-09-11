@@ -268,7 +268,12 @@ export class Wechaty implements OnebotWechat {
                         message.data.file_id,
                         ".gif"
                     );
-                    const mp4 = await gif2Mp4(filebox);
+                    // send gif as mp4
+                    if (filebox) {
+                        const mp4 = await gif2Mp4(filebox);
+                        await target.say(mp4);
+                        break;
+                    }
                     const msg = await target.say(filebox ?? "[表情]");
                     await this.linkResource(msg, message.data.file_id);
                     break;

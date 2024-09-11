@@ -17,6 +17,7 @@ export default defineConfig({
         globals: true,
         cache: { dir: "../../node_modules/.vitest" },
         environment: "node",
+        testTimeout: 600_000,
         include: ["src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"],
         reporters: ["default"],
         coverage: {

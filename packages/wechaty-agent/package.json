@@ -2,6 +2,8 @@
     "name": "@focalors/wechaty-agent",
     "version": "0.0.1",
     "dependencies": {
+        "@ffmpeg-installer/ffmpeg": "^1.1.0",
+        "@ffprobe-installer/ffprobe": "^2.1.2",
         "@swc/helpers": "~0.5.2",
         "file-box": "^1.4.15",
         "fluent-ffmpeg": "^2.1.3",
