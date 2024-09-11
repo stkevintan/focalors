@@ -41,6 +41,7 @@ interface SubComment {
 
 const oo = bold("oo");
 const xx = bold("xx");
+const FROM = bold("from");
 @injectable()
 export class JanDanClient extends OnebotClient {
     constructor(
@@ -55,7 +56,7 @@ export class JanDanClient extends OnebotClient {
         return `client:jandan:index:${id}`;
     }
 
-    private intervalHandler?: NodeJS.Timer;
+    private intervalHandler = new Map<string, NodeJS.Timer>();
 
     async recv(
         message: MessageSegment[],
@@ -90,24 +91,27 @@ export class JanDanClient extends OnebotClient {
             return false;
         }
 
-        // deprecated
-        const timerKey = `client:jandan:timer`;
         const id = groupId ?? userId!;
+        const handler = this.intervalHandler.get(id);
 
         if (/^#\s*煎蛋开启定时转发\s*$/i.test(text)) {
-            if (this.intervalHandler) {
-                clearInterval(this.intervalHandler);
+            if (handler) {
+                clearInterval(handler);
             }
-            this.intervalHandler = setInterval(async () => {
-                await this.sendJandan(from);
-            }, 30 * 60 * 1000);
+            this.intervalHandler.set(
+                id,
+                setInterval(async () => {
+                    await this.sendJandan(from);
+                }, 30 * 60 * 1000)
+            );
             this.sendText(`已开启`, from);
             return true;
         }
 
         if (/^#\s*煎蛋关闭定时转发\s*$/i.test(text)) {
-            if (this.intervalHandler) {
-                clearInterval(this.intervalHandler);
+            if (handler) {
+                clearInterval(handler);
+                this.intervalHandler.delete(id);
             }
             this.sendText("已关闭", from);
             return true;
@@ -115,18 +119,29 @@ export class JanDanClient extends OnebotClient {
 
         if (/^#\s*煎蛋重置\s*$/i.test(text)) {
             await this.redis.del(this.key(id));
-            await this.redis.hDel(timerKey, id);
             this.sendText("煎蛋状态已重置", from);
             return true;
         }
         return false;
     }
 
-    private async sendJandan(from: MessageTarget2, top = 1) {
-        const commentUrl = `https://i.jandan.net/?oxwlxojflwblxbsapi=jandan.get_pic_comments`;
+    private async sendJandan(
+        from: MessageTarget2,
+        top = 1,
+        page = 0
+    ): Promise<number> {
+        let commentUrl = `https://i.jandan.net/?oxwlxojflwblxbsapi=jandan.get_pic_comments`;
+        if (page) {
+            commentUrl += `&page=${page}`;
+        }
+
         let cnt = 0;
         try {
-            const resp: { comments: Comment[] } = await fetch(commentUrl, {
+            const resp: {
+                comments: Comment[];
+                current_page: number;
+                page_count: number;
+            } = await fetch(commentUrl, {
                 headers,
             }).then((r) => r.json());
             const { userId, groupId } = expandTarget(from);
@@ -156,10 +171,8 @@ export class JanDanClient extends OnebotClient {
                 const tucao = await this.getSubComments(comment);
                 this.sendText(
                     [
-                        `${comment.text_content?.trim()} 作者: ${
-                            comment.comment_author
-                        }`,
-                        `${oo}: ${comment.vote_positive}, ${xx}: ${comment.vote_negative}`,
+                        `${comment.text_content?.trim()}`,
+                        `${oo}: ${comment.vote_positive}, ${xx}: ${comment.vote_negative}, ${FROM}: ${comment.comment_author}`,
                         tucao,
                     ]
                         .join("\n")
@@ -176,6 +189,14 @@ export class JanDanClient extends OnebotClient {
                 if (cnt >= top) {
                     break;
                 }
+            }
+
+            if (cnt < top && resp.current_page < resp.page_count) {
+                return await this.sendJandan(
+                    from,
+                    top - cnt,
+                    resp.current_page + 1
+                );
             }
         } catch (err) {
             logger.error(err);
