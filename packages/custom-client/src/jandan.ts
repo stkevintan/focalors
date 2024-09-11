@@ -39,15 +39,8 @@ interface SubComment {
     date: string;
 }
 
-enum JandanTimerStatus {
-    off,
-    on,
-    stopped,
-}
-
-
-const oo = bold('oo');
-const xx = bold('xx');
+const oo = bold("oo");
+const xx = bold("xx");
 @injectable()
 export class JanDanClient extends OnebotClient {
     constructor(
@@ -61,6 +54,8 @@ export class JanDanClient extends OnebotClient {
     private key(id: string) {
         return `client:jandan:index:${id}`;
     }
+
+    private intervalHandler?: NodeJS.Timer;
 
     async recv(
         message: MessageSegment[],
@@ -95,43 +90,25 @@ export class JanDanClient extends OnebotClient {
             return false;
         }
 
+        // deprecated
         const timerKey = `client:jandan:timer`;
         const id = groupId ?? userId!;
 
         if (/^#\s*煎蛋开启定时转发\s*$/i.test(text)) {
-            // const status = (await this.redis.hGet(timerKey, id)) ?? 0;
-            // if (status === JandanTimerStatus.on) {
-            //     this.sendText("已开启", from);
-            //     return true;
-            // }
-
-            // await this.redis.hSet(timerKey, id, JandanTimerStatus.on);
-
-            // if (status === JandanTimerStatus.stopped) {
-            //     this.sendText("已开启", from);
-            //     return true;
-            // }
-
-            // void (async () => {
-            //     for (;;) {
-            //         await this.sendJandan(from);
-            //         await new Promise((r) =>
-            //             setTimeout(r, 1000 * 60 * 60 * 60)
-            //         );
-            //         const currentStatus = await this.redis.hGet(timerKey, id);
-            //         if (JandanTimerStatus.stopped === currentStatus) {
-            //             await this.redis.hDel(timerKey, id);
-            //         }
-            //         if (JandanTimerStatus.on !== currentStatus) {
-            //             break;
-            //         }
-            //     }
-            // })();
+            if (this.intervalHandler) {
+                clearInterval(this.intervalHandler);
+            }
+            this.intervalHandler = setInterval(async () => {
+                await this.sendJandan(from);
+            }, 30 * 60 * 1000);
+            this.sendText(`已开启`, from);
             return true;
         }
 
         if (/^#\s*煎蛋关闭定时转发\s*$/i.test(text)) {
-            await this.redis.hSet(timerKey, id, JandanTimerStatus.stopped);
+            if (this.intervalHandler) {
+                clearInterval(this.intervalHandler);
+            }
             this.sendText("已关闭", from);
             return true;
         }
@@ -155,7 +132,12 @@ export class JanDanClient extends OnebotClient {
             const { userId, groupId } = expandTarget(from);
             const key = this.key(groupId ?? userId!);
             for (const comment of resp.comments) {
-                if (await this.redis.sIn(key, comment.comment_ID)) {
+                logger.info(`processing comment ${comment.comment_ID}`);
+                if (
+                    undefined !=
+                    (await this.redis.zRank(key, comment.comment_ID))
+                ) {
+                    logger.info(`comment ${comment.comment_ID} is visited`);
                     continue;
                 }
 
@@ -185,8 +167,12 @@ export class JanDanClient extends OnebotClient {
                     from
                 );
                 cnt++;
-                await this.redis.sAdd(key, comment.comment_ID);
-                await this.redis.expire(key, 15 * 60 * 60 * 24, "NX");
+                const timestamp = new Date(comment.comment_date).getTime();
+                await this.redis.zAdd(key, comment.comment_ID, timestamp);
+                if (comment.comment_ID % 5 === 0) {
+                    await this.rmOutdated(key);
+                }
+
                 if (cnt >= top) {
                     break;
                 }
@@ -195,6 +181,15 @@ export class JanDanClient extends OnebotClient {
             logger.error(err);
         }
         return cnt;
+    }
+
+    private async rmOutdated(key: string) {
+        logger.info(`clean up outdated comments 15 days ago`);
+        await this.redis.zRemRangeByScore(
+            key,
+            "-inf",
+            Date.now() - 15 * 24 * 60 * 60 * 1000
+        );
     }
 
     private async getSubComments(comment: Comment) {
@@ -216,4 +211,3 @@ export class JanDanClient extends OnebotClient {
         }
     }
 }
-
