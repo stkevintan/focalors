@@ -8,6 +8,7 @@ import ffprobe from "@ffprobe-installer/ffprobe";
 import path from "path";
 import { randomUUID } from "crypto";
 import { rm } from "fs/promises";
+import { inspect } from "util";
 
 const logger = createLogger("gif-2-mp4");
 export async function gif2Mp4(fileBox: FileBox): Promise<FileBox> {
@@ -30,7 +31,7 @@ export async function gif2Mp4(fileBox: FileBox): Promise<FileBox> {
             .outputOptions("-movflags frag_keyframe+empty_moov")
             .toFormat("mp4")
             .on("error", (e) => {
-                logger.error(`Converting gif to mp4 failed: %O`, e);
+                logger.error(`Converting gif to mp4 failed: ${inspect(e)}`);
             });
 
         return FileBox.fromStream(

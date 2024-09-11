@@ -23,6 +23,7 @@ import {
 } from "@focalors/onebot-protocol";
 import { Configuration } from "./config";
 import { createLogger } from "@focalors/logger";
+import { inspect } from "util";
 
 const logger = createLogger("yunzai-client");
 
@@ -101,7 +102,7 @@ export class YunzaiClient extends OnebotClient {
             this.client = new ws(this.configuration.ws.endpoint);
             this.client.on("message", this.onClientMessage.bind(this));
             this.client.on('error', err => {
-                logger.error("connection on error: %O", err);
+                logger.error(`connection on error: ${inspect(err)}`);
             });
             this.client.on('close', (code, reason) => {
                 logger.info("connection closed: %s, %s", code, reason);
@@ -111,7 +112,7 @@ export class YunzaiClient extends OnebotClient {
             this.ping();
             return this.client;
         } catch (err) {
-            logger.error(`failed to connect to ComWechat: %O`, err);
+            logger.error(`failed to connect to ComWechat: ${inspect(err)}`);
             return undefined;
         }
     }
@@ -201,8 +202,7 @@ export class YunzaiClient extends OnebotClient {
         }
         this.client.send(JSON.stringify(event), (err: unknown) => {
             if (err) {
-                console.trace();
-                logger.error("Client send error %O", err);
+                logger.error(`Client send error ${inspect(err)}`);
             }
         });
     }

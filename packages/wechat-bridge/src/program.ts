@@ -9,6 +9,7 @@ import {
     RedisClient,
 } from "@focalors/onebot-protocol";
 import { createLogger, Logger } from "@focalors/logger";
+import { inspect } from "util";
 
 const logger: Logger = createLogger("program");
 
@@ -41,7 +42,7 @@ export class Program implements AsyncService {
             for (const client of this.clients) {
                 if (
                     await client.recv(message, target).catch((err) => {
-                        logger.error("Failed to execute recv: %O", err);
+                        logger.error(`Failed to execute recv: ${inspect(err)}`);
                         return false;
                     })
                 ) {

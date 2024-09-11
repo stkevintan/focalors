@@ -19,6 +19,7 @@ import { ChatCompletionMessageParam } from "openai/resources";
 import { APIError } from "openai/error";
 import { getPrompt, stripCommandAndAt } from "./utils";
 import { createLogger, Logger } from "@focalors/logger";
+import { inspect } from "util";
 
 const logger: Logger = createLogger("gpt-client");
 
@@ -139,7 +140,7 @@ export class GPTClient extends OnebotClient {
                         },
                     ];
                 } catch (err) {
-                    logger.error("Failed to process image %O", err);
+                    logger.error(`Failed to process image ${inspect(err)}`);
                     this.sendText("图片解码失败", from);
                     return true;
                 }
@@ -161,10 +162,10 @@ export class GPTClient extends OnebotClient {
                     `🚫 糟糕, 接口${err.status}啦! ${err.code ?? ""}`,
                     from
                 );
-                logger.error(`Completion API error: %O`, err);
+                logger.error(`Completion API error: ${inspect(err)}`);
                 return true;
             }
-            logger.error(`Completion failed: %O`, err);
+            logger.error(`Completion failed: ${inspect(err)}`);
             return false;
         }
     }

@@ -1,6 +1,7 @@
 import { createLogger } from "@focalors/logger";
 import EventEmitter from "events";
 import { inject, InjectionToken } from "tsyringe";
+import { inspect } from "util";
 import { AsyncService } from "./common";
 import {
     MessageSegment,
@@ -41,7 +42,7 @@ export abstract class OnebotClient implements AsyncService {
                 prev = prev
                     .then(() => callback(params.message, params.target))
                     .catch((err) => {
-                        logger.error("Failed to execute callback: %O", err);
+                        logger.error(`Failed to execute callback: ${inspect(err)}`);
                         return null;
                     });
             }
