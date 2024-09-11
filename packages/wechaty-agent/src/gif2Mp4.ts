@@ -2,7 +2,7 @@ import os from "os";
 import { createLogger } from "@focalors/logger";
 import { FileBox, FileBoxType } from "file-box";
 import ffmpeg from "fluent-ffmpeg";
-import type { PassThrough } from "stream";
+import { Writable } from "stream";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import ffprobe from "@ffprobe-installer/ffprobe";
 import path from "path";
@@ -18,6 +18,7 @@ export async function gif2Mp4(fileBox: FileBox): Promise<FileBox> {
             .setFfmpegPath(ffmpegInstaller.path)
             .setFfprobePath(ffprobe.path);
 
+        const stream = new FileBoxStream();
         command
             .inputFormat("gif")
             .noAudio()
@@ -32,12 +33,10 @@ export async function gif2Mp4(fileBox: FileBox): Promise<FileBox> {
             .toFormat("mp4")
             .on("error", (e) => {
                 logger.error(`Converting gif to mp4 failed: ${inspect(e)}`);
-            });
+            })
+            .pipe(stream);
 
-        return FileBox.fromStream(
-            command.pipe() as PassThrough,
-            `${new Date().toLocaleDateString()}.mp4`
-        );
+        return await stream.toFileBox(`${new Date().toLocaleDateString()}.mp4`);
     } finally {
         if (inTmpDir) {
             rm(localPath, { force: true }).catch();
@@ -53,4 +52,43 @@ async function getLocalPath(filebox: FileBox): Promise<[string, boolean]> {
     const localPath = path.resolve(os.tmpdir(), `${randomUUID()}.gif`);
     await filebox.toFile(localPath, true);
     return [localPath, true];
+}
+
+class FileBoxStream extends Writable {
+    private ok: () => void = () => {};
+    private err: (e: Error) => void = () => {};
+    private defer = new Promise<void>((res, rej) => {
+        this.ok = res;
+        this.err = rej;
+    });
+
+    constructor() {
+        super();
+    }
+
+    private buffer: Buffer[] = [];
+    override _write(
+        chunk: Buffer,
+        _encoding: BufferEncoding,
+        callback: (error?: Error | null) => void
+    ): void {
+        this.buffer.push(chunk);
+        callback();
+    }
+    override end() {
+        super.end();
+        this.ok();
+        logger.info(`write end: ${this.buffer.length}`);
+        return this;
+    }
+
+    override destroy(error?: Error | undefined): this {
+        this.err(error ?? new Error("destroyed"));
+        return this;
+    }
+
+    async toFileBox(name: string): Promise<FileBox> {
+        await this.defer;
+        return FileBox.fromBuffer(Buffer.concat(this.buffer), name);
+    }
 }
