@@ -65,6 +65,7 @@ export abstract class OnebotClient implements AsyncService {
             );
         }
     }
+
     protected async sendFile(
         params: Parameters<OnebotWechat["uploadFile"]>[0],
         target: MessageTarget2,

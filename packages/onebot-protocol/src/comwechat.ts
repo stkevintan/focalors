@@ -134,7 +134,7 @@ export type MessageSegment =
     | FileMessageSegment
     | ReplyMessageSegment
     | WxEmojiMessageSegment
-    | CardMessageSegment
+    | CardMessageSegment;
     // | WxXMLMessageSegment;
 
 export type Event = MetaConnectEvent | MetaStatusUpdateEvent | MessageEvent;

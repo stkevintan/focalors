@@ -267,10 +267,24 @@ export class Wechaty implements OnebotWechat {
                         message.data.file_id,
                         ".gif"
                     );
+                    if (filebox) {
+                        await filebox.ready();
+                        const payload = {
+                            cdnurl: "",
+                            md5: "",
+                            len: filebox.size,
+                            type: 2,
+                            width: 520,
+                            height: 520,
+                        };
+                        filebox.metadata = payload;
+                        filebox.mimeType = "emoticon";
+                    }
                     const msg = await target.say(filebox ?? "[表情]");
                     await this.linkResource(msg, message.data.file_id);
                     break;
                 }
+
                 case "card": {
                     const link = new this.bot.UrlLink({
                         thumbnailUrl: message.data.thumburl,

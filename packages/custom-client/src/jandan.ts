@@ -27,7 +27,15 @@ interface Comment {
     vote_positive: number;
     vote_negative: number;
     text_content: string;
+    sub_comment_count: string;
     pics: string[];
+}
+
+interface SubComment {
+    id: number;
+    author: string;
+    content: string;
+    date: string;
 }
 
 enum JandanTimerStatus {
@@ -68,9 +76,11 @@ export class JanDanClient extends OnebotClient {
             this.sendText(out, from);
             return true;
         }
+        const matchRet = text.match(/^#\s*煎蛋\s*(top(\d+))?\s*$/);
 
-        if (/^#\s*煎蛋\s*$/.test(text)) {
-            await this.sendJandan(from);
+        if (matchRet) {
+            const top = Number.parseInt(matchRet[2], 10) || 1;
+            await this.sendJandan(from, top);
             return true;
         }
 
@@ -128,7 +138,7 @@ export class JanDanClient extends OnebotClient {
         return false;
     }
 
-    private async sendJandan(from: MessageTarget2) {
+    private async sendJandan(from: MessageTarget2, top = 1) {
         const commentUrl = `https://i.jandan.net/?oxwlxojflwblxbsapi=jandan.get_pic_comments`;
         try {
             const resp: { comments: Comment[] } = await fetch(commentUrl, {
@@ -136,20 +146,12 @@ export class JanDanClient extends OnebotClient {
             }).then((r) => r.json());
             const { userId, groupId } = expandTarget(from);
             const key = this.key(groupId ?? userId!);
-            const value = await this.redis.get<string>(key);
-
-            const lastSentTime = value
-                ? new Date(value).getTime()
-                : new Date().getTime() - 5 * 60 * 60 * 1000;
-
-            let sentTime = lastSentTime;
             let cnt = 0;
             for (const comment of resp.comments) {
-                const commentTime = new Date(comment.comment_date).getTime();
-                if (commentTime <= lastSentTime) {
-                    break;
+                if (await this.redis.sIn(key, comment.comment_ID)) {
+                    continue;
                 }
-                cnt++;
+
                 for (const pic of comment.pics) {
                     await this.sendFile(
                         {
@@ -161,20 +163,51 @@ export class JanDanClient extends OnebotClient {
                         pic.endsWith(".gif") ? "wx.emoji" : "image"
                     );
                 }
+
+                const tucao = await this.getSubComments(comment);
                 this.sendText(
-                    `${comment.text_content} 作者: ${comment.comment_author}\noo: ${comment.vote_positive}, xx: ${comment.vote_negative}`.trim(),
+                    [
+                        `${comment.text_content} 作者: ${comment.comment_author}`,
+                        `oo: ${comment.vote_positive}, xx: ${comment.vote_negative}`,
+                        tucao,
+                    ]
+                        .join("\n")
+                        .trim(),
                     from
                 );
-                sentTime = Math.max(sentTime, commentTime);
+                cnt++;
+                await this.redis.sAdd(key, comment.comment_ID);
+                await this.redis.expire(key, 15 * 60 * 60 * 24, "NX");
+                if (cnt >= top) {
+                    break;
+                }
             }
 
-            if (sentTime > lastSentTime) await this.redis.set(key, sentTime);
             if (cnt === 0) {
                 this.sendText("暂无更新, 请稍候再试...", from);
             }
         } catch (err) {
             logger.error(err);
             this.sendText("糟糕，煎蛋获取失败", from);
+        }
+    }
+
+    private async getSubComments(comment: Comment) {
+        if (+comment.sub_comment_count === 0) {
+            return "";
+        }
+        try {
+            const resp = await fetch(
+                `https://api.jandan.net/api/v1/tucao/list/${comment.comment_ID}`,
+                { headers }
+            ).then((r) => r.json());
+            const list = resp.data.list as SubComment[];
+            return list
+                .map((comment) => `**${comment.author}**: ${comment.content}`)
+                .join("\n");
+        } catch (err) {
+            logger.error(err);
+            return "";
         }
     }
 }
