@@ -35,14 +35,15 @@ export abstract class OnebotClient implements AsyncService {
     subscribe(
         callback: (message: MessageSegment[], target: MessageTarget2) => void
     ): void {
-        let prev: Promise<unknown> = Promise.resolve();
         this.eventSub.on(
             "message",
             (params: { message: MessageSegment[]; target: MessageTarget2 }) => {
-                prev = prev
+                Promise.resolve()
                     .then(() => callback(params.message, params.target))
                     .catch((err) => {
-                        logger.error(`Failed to execute callback: ${inspect(err)}`);
+                        logger.error(
+                            `Failed to execute callback: ${inspect(err)}`
+                        );
                         return null;
                     });
             }
