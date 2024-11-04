@@ -39,9 +39,9 @@ interface SubComment {
     date: string;
 }
 
-const oo = bold("oo");
-const xx = bold("xx");
-const FROM = bold("from");
+// const oo = bold("oo");
+// const xx = bold("xx");
+// const FROM = bold("from");
 @injectable()
 export class JanDanClient extends OnebotClient {
     constructor(
@@ -168,17 +168,17 @@ export class JanDanClient extends OnebotClient {
                     );
                 }
 
-                const tucao = await this.getSubComments(comment);
-                this.sendText(
-                    [
-                        `${comment.text_content?.trim()}`,
-                        `${oo}: ${comment.vote_positive}, ${xx}: ${comment.vote_negative}, ${FROM}: ${comment.comment_author}`,
-                        tucao,
-                    ]
-                        .join("\n")
-                        .trim(),
-                    from
-                );
+                // const tucao = await this.getSubComments(comment);
+                // this.sendText(
+                //     [
+                //         `${comment.text_content?.trim()}`,
+                //         `${oo}: ${comment.vote_positive}, ${xx}: ${comment.vote_negative}, ${FROM}: ${comment.comment_author}`,
+                //         tucao,
+                //     ]
+                //         .join("\n")
+                //         .trim(),
+                //     from
+                // );
                 cnt++;
                 const timestamp = new Date(comment.comment_date).getTime();
                 await this.redis.zAdd(key, comment.comment_ID, timestamp);
