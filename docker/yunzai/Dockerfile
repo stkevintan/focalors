@@ -13,7 +13,7 @@ ARG BUNDLE_POETRY=true
 ARG USE_APT_MIRROR=true
 ARG USE_NPM_MIRROR=true
 ARG USE_PYPI_MIRROR=true
-ARG REPO_URL=https://github.com/TimeRainStarSky/Yunzai.git
+ARG REPO_URL=https://gitee.com/TimeRainStarSky/Yunzai
 ARG REPO_BRANCH=main
 
 RUN export BUNDLE_FFMPEG=${BUNDLE_FFMPEG} \
