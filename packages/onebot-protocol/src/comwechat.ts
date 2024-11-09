@@ -155,6 +155,7 @@ export type ActionReq<T extends Action> = T extends Action<infer K, infer P>
     : never;
 
 export interface ActionRes<R extends Action> {
+    retcode: number;
     echo: string;
     data: R["res"];
 }

@@ -184,7 +184,7 @@ export class YunzaiClient extends OnebotClient {
         try {
             const res = await handler(req.params as never);
             if (res) {
-                this.rawSend({ echo: req.echo, data: res });
+                this.rawSend({ retcode: 0, echo: req.echo, data: res });
             }
             logger.debug(
                 `Event handler of ${req.action} executed successfully`
