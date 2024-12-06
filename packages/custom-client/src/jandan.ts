@@ -94,21 +94,25 @@ export class JanDanClient extends OnebotClient {
         const id = groupId ?? userId!;
         const handler = this.intervalHandler.get(id);
 
-        if (/^#\s*煎蛋开启定时转发\s*$/i.test(text)) {
+        if (/^#\s*煎蛋定时转发\s*开启\s*$/i.test(text)) {
             if (handler) {
                 clearInterval(handler);
             }
             this.intervalHandler.set(
                 id,
                 setInterval(async () => {
-                    await this.sendJandan(from);
+                    // only actiate in daytime
+                    const currentHour = new Date().getHours();
+                    if (currentHour >= 9 && currentHour < 23) {
+                        await this.sendJandan(from);
+                    }
                 }, 30 * 60 * 1000)
             );
             this.sendText(`已开启`, from);
             return true;
         }
 
-        if (/^#\s*煎蛋关闭定时转发\s*$/i.test(text)) {
+        if (/^#\s*煎蛋定时转发\s*关闭\s*$/i.test(text)) {
             if (handler) {
                 clearInterval(handler);
                 this.intervalHandler.delete(id);

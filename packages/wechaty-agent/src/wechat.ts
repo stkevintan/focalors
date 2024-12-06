@@ -321,6 +321,7 @@ export class Wechaty implements OnebotWechat {
         }
 
         let name = payload.name ?? randomUUID();
+        name = name.replace(/\?[^.]*$/, '');
         if (!path.extname(name)) {
             name += defaultExt;
         }
