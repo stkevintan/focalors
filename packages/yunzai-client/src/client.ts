@@ -73,6 +73,14 @@ export class YunzaiClient extends OnebotClient {
         get_group_list: () => this.wechat.getGroups(),
         get_group_member_info: (params) =>
             this.wechat.getFriend(params.user_id, params.group_id),
+        get_group_member_list: async ({ group_id }) => {
+            const rec = await this.wechat.getGroupMembers(group_id);
+            return Object.entries(rec).map(([userId, userName]) => ({
+                user_id: userId,
+                user_name: userName,
+                user_displayname: userName,
+            }));
+        },
         send_message: (params) => {
             this.send(
                 params.message,
@@ -101,10 +109,10 @@ export class YunzaiClient extends OnebotClient {
         try {
             this.client = new ws(this.configuration.ws.endpoint);
             this.client.on("message", this.onClientMessage.bind(this));
-            this.client.on('error', err => {
+            this.client.on("error", (err) => {
                 logger.error(`connection on error: ${inspect(err)}`);
             });
-            this.client.on('close', (code, reason) => {
+            this.client.on("close", (code, reason) => {
                 logger.info("connection closed: %s, %s", code, reason);
             });
             // wait for websocket opened
