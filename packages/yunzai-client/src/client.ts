@@ -179,13 +179,13 @@ export class YunzaiClient extends OnebotClient {
         }
         const req = JSON.parse(data.toString("utf8")) as ActionReq<KnownAction>;
         if (null === req || typeof req !== "object") {
-            logger.warn("Unexpected message received", req);
+            logger.warn("Unexpected message received %s", req);
         }
         logger.debug("Received client message: %O", dontOutputBase64(req));
         const handler = this.actionHandlers[req.action];
 
         if (!handler) {
-            logger.warn("No handler registered to event:", req.action);
+            logger.warn("No handler registered to event: %s", req.action);
             return;
         }
         logger.debug(`Starting to execute handler of ${req.action}`);
