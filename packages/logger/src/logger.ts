@@ -25,7 +25,7 @@ export const rootLogger = pino({
                     messageFormat: "[{module}] {msg}",
                     ignore: "pid,hostname,module",
                 },
-                level: "info",
+                level: "trace",
             },
             loki,
         ].filter(<T>(t: T | undefined): t is T => !!t),

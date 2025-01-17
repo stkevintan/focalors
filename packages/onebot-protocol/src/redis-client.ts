@@ -24,11 +24,14 @@ export class RedisClient implements AsyncService {
 
     async slice(key: string, from: number, to: number) {
         const arr = await this.client.lRange(key, from, to);
-        return arr.map(entry => JSON.parse(entry));
+        return arr.map((entry) => JSON.parse(entry));
     }
 
     async unshift(key: string, ...value: unknown[]) {
-        return await this.client.lPush(key, value.map(v => JSON.stringify(v)));
+        return await this.client.lPush(
+            key,
+            value.map((v) => JSON.stringify(v))
+        );
     }
 
     async lTrim(key: string, from: number, to: number) {
@@ -56,6 +59,43 @@ export class RedisClient implements AsyncService {
 
     async sIn(key: string, value: unknown) {
         return await this.client.sIsMember(key, JSON.stringify(value));
+    }
+
+    async hGet(key: string, field: string) {
+        const v = await this.client.hGet(key, field);
+        return v ? JSON.parse(v) : undefined;
+    }
+
+    async hSet(key: string, field: string, value: unknown) {
+        return await this.client.hSet(key, field, JSON.stringify(value));
+    }
+
+    async hDel(key: string, field: string) {
+        return await this.client.hDel(key, field);
+    }
+
+    async zAdd(key: string, value: unknown, score: number) {
+        return await this.client.zAdd(key, {
+            score,
+            value: JSON.stringify(value),
+        });
+    }
+
+    async zRange(key: string, min: number | string, max: number | string) {
+        return await this.client.zRange(key, min, max);
+    }
+
+    async zRank(key: string, value: unknown) {
+        const str = JSON.stringify(value);
+        return await this.client.zRank(key, str);
+    }
+
+    async zRemRangeByScore(
+        key: string,
+        min: number | string,
+        max: number | string
+    ) {
+        return await this.client.zRemRangeByScore(key, min, max);
     }
 
     private client: RedisClientType;

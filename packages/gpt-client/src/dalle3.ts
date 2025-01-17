@@ -17,6 +17,7 @@ import { ImageGenerateParams } from "openai/resources";
 import { createLogger, Logger } from "@focalors/logger";
 import { GPTClient } from "./gpt4";
 import assert from "assert";
+import { inspect } from "util";
 
 const logger: Logger = createLogger("dalle-client");
 
@@ -94,7 +95,7 @@ export class Dalle3Client extends OnebotClient {
                 await this.handleImage(text.replace(/^prompt:/, ""), from);
             }
         } catch (e) {
-            logger.error("Processing image error: %O", e);
+            logger.error(`Processing image error: ${inspect(e)}`);
             if (e instanceof APIError) {
                 this.sendText(
                     `🚫 糟糕, 接口${e.status}啦! ${e.code ?? ""}`,

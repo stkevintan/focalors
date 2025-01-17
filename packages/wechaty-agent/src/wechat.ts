@@ -18,6 +18,7 @@ import { createLogger } from "@focalors/logger";
 import { randomUUID } from "crypto";
 import path from "path";
 import { WechatMessageType } from "./types";
+import { gif2Mp4 } from "./gif2Mp4";
 
 const logger = createLogger("wechaty-agent");
 
@@ -66,7 +67,7 @@ export class Wechaty implements OnebotWechat {
             }
             const room = message.room();
             const segment: MessageSegment[] = [];
-            const mentions = await message.mentionList();
+            const mentions = await message.mentionList().catch(() => []);
             segment.push(
                 ...mentions.map<MentionMessageSegment>((m) => ({
                     type: "mention",
@@ -267,10 +268,17 @@ export class Wechaty implements OnebotWechat {
                         message.data.file_id,
                         ".gif"
                     );
+                    // send gif as mp4
+                    if (filebox) {
+                        const mp4 = await gif2Mp4(filebox);
+                        await target.say(mp4);
+                        break;
+                    }
                     const msg = await target.say(filebox ?? "[表情]");
                     await this.linkResource(msg, message.data.file_id);
                     break;
                 }
+
                 case "card": {
                     const link = new this.bot.UrlLink({
                         thumbnailUrl: message.data.thumburl,
@@ -313,6 +321,7 @@ export class Wechaty implements OnebotWechat {
         }
 
         let name = payload.name ?? randomUUID();
+        name = name.replace(/\?[^.]*$/, '');
         if (!path.extname(name)) {
             name += defaultExt;
         }

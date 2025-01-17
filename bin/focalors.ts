@@ -8,6 +8,8 @@ import { YunzaiClient } from "@focalors/yunzai-client";
 import { GPTClient, Dalle3Client } from "@focalors/gpt-client";
 import { RandomAbyssClient, SystemClient } from "@focalors/custom-client";
 import { Wechaty } from "@focalors/wechaty-agent";
+import { JanDanClient } from "../packages/custom-client/src";
+import { inspect } from "util";
 
 
 async function main() {
@@ -16,6 +18,7 @@ async function main() {
             Wechaty, // <--- master
             // following slaves
             SystemClient,
+            JanDanClient,
             RandomAbyssClient,
             YunzaiClient,
             Dalle3Client,
@@ -40,7 +43,7 @@ async function main() {
 
         // catches uncaught exceptions
         process.on("uncaughtException", (e) => {
-            rootLogger.error("Uncaught exception: %O", e);
+            rootLogger.error(`Uncaught exception: ${inspect(e)}`);
         });
 
         // Windows graceful stop

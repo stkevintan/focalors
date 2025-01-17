@@ -23,6 +23,7 @@ import {
 } from "@focalors/onebot-protocol";
 import { Configuration } from "./config";
 import { createLogger } from "@focalors/logger";
+import { inspect } from "util";
 
 const logger = createLogger("yunzai-client");
 
@@ -72,6 +73,14 @@ export class YunzaiClient extends OnebotClient {
         get_group_list: () => this.wechat.getGroups(),
         get_group_member_info: (params) =>
             this.wechat.getFriend(params.user_id, params.group_id),
+        get_group_member_list: async ({ group_id }) => {
+            const rec = await this.wechat.getGroupMembers(group_id);
+            return Object.entries(rec).map(([userId, userName]) => ({
+                user_id: userId,
+                user_name: userName,
+                user_displayname: userName,
+            }));
+        },
         send_message: (params) => {
             this.send(
                 params.message,
@@ -100,15 +109,18 @@ export class YunzaiClient extends OnebotClient {
         try {
             this.client = new ws(this.configuration.ws.endpoint);
             this.client.on("message", this.onClientMessage.bind(this));
-            this.client.on('error', err => {
-                logger.error("connection on error: %O", err);
+            this.client.on("error", (err) => {
+                logger.error(`connection on error: ${inspect(err)}`);
+            });
+            this.client.on("close", (code, reason) => {
+                logger.info("connection closed: %s, %s", code, reason);
             });
             // wait for websocket opened
             await waitFor(this.client, "open");
             this.ping();
             return this.client;
         } catch (err) {
-            logger.error(`failed to connect to ComWechat: %O`, err);
+            logger.error(`failed to connect to ComWechat: ${inspect(err)}`);
             return undefined;
         }
     }
@@ -167,20 +179,20 @@ export class YunzaiClient extends OnebotClient {
         }
         const req = JSON.parse(data.toString("utf8")) as ActionReq<KnownAction>;
         if (null === req || typeof req !== "object") {
-            logger.warn("Unexpected message received", req);
+            logger.warn("Unexpected message received %s", req);
         }
         logger.debug("Received client message: %O", dontOutputBase64(req));
         const handler = this.actionHandlers[req.action];
 
         if (!handler) {
-            logger.warn("No handler registered to event:", req.action);
+            logger.warn("No handler registered to event: %s", req.action);
             return;
         }
         logger.debug(`Starting to execute handler of ${req.action}`);
         try {
             const res = await handler(req.params as never);
             if (res) {
-                this.rawSend({ echo: req.echo, data: res });
+                this.rawSend({ retcode: 0, echo: req.echo, data: res });
             }
             logger.debug(
                 `Event handler of ${req.action} executed successfully`
@@ -198,7 +210,7 @@ export class YunzaiClient extends OnebotClient {
         }
         this.client.send(JSON.stringify(event), (err: unknown) => {
             if (err) {
-                logger.error("Client send error", err);
+                logger.error(`Client send error ${inspect(err)}`);
             }
         });
     }

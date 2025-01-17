@@ -1,5 +1,7 @@
+import { createLogger } from "@focalors/logger";
 import EventEmitter from "events";
 import { inject, InjectionToken } from "tsyringe";
+import { inspect } from "util";
 import { AsyncService } from "./common";
 import {
     MessageSegment,
@@ -19,6 +21,7 @@ export type AbstractActionMap = Omit<
 export const OnebotWechatToken: InjectionToken<OnebotWechat> = "onebot_wechat";
 export const OnebotClientToken: InjectionToken<OnebotClient> = "onebot_client";
 
+const logger = createLogger("onebot-client");
 export abstract class OnebotClient implements AsyncService {
     private eventSub = new EventEmitter();
     constructor(@inject(OnebotWechatToken) protected wechat: OnebotWechat) {
@@ -35,7 +38,14 @@ export abstract class OnebotClient implements AsyncService {
         this.eventSub.on(
             "message",
             (params: { message: MessageSegment[]; target: MessageTarget2 }) => {
-                callback(params.message, params.target);
+                Promise.resolve()
+                    .then(() => callback(params.message, params.target))
+                    .catch((err) => {
+                        logger.error(
+                            `Failed to execute callback: ${inspect(err)}`
+                        );
+                        return null;
+                    });
             }
         );
     }
@@ -57,6 +67,7 @@ export abstract class OnebotClient implements AsyncService {
             );
         }
     }
+
     protected async sendFile(
         params: Parameters<OnebotWechat["uploadFile"]>[0],
         target: MessageTarget2,

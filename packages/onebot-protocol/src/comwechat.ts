@@ -99,7 +99,7 @@ export interface ReplyMessageSegment {
         message_id: string;
         // extra message
         message_content: unknown;
-        message_type: 'image' | 'text' | 'others'
+        message_type: "image" | "text" | "others";
     };
 }
 
@@ -134,8 +134,8 @@ export type MessageSegment =
     | FileMessageSegment
     | ReplyMessageSegment
     | WxEmojiMessageSegment
-    | CardMessageSegment
-    // | WxXMLMessageSegment;
+    | CardMessageSegment;
+// | WxXMLMessageSegment;
 
 export type Event = MetaConnectEvent | MetaStatusUpdateEvent | MessageEvent;
 
@@ -155,6 +155,7 @@ export type ActionReq<T extends Action> = T extends Action<infer K, infer P>
     : never;
 
 export interface ActionRes<R extends Action> {
+    retcode: number;
     echo: string;
     data: R["res"];
 }
@@ -261,6 +262,12 @@ export type GetVersionAction = Action<
     { impl: "ComWechat"; version: string; onebot_version: string }
 >;
 
+export type GetGroupMembersAction = Action<
+    "get_group_member_list",
+    { group_id: string },
+    Array<{ user_id: string; user_name: string; user_displayname: string }>
+>;
+
 export type KnownActions = [
     GetStatusAction,
     GetVersionAction,
@@ -269,7 +276,8 @@ export type KnownActions = [
     GetGroupListAction,
     GetGroupMemberInfoAction,
     UploadFileAction,
-    SendMessageAction
+    SendMessageAction,
+    GetGroupMembersAction
 ];
 
 export type KnownAction = TupleToUnion<KnownActions>;
