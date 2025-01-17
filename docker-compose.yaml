@@ -1,0 +1,66 @@
+version: "3"
+services:
+  focalors:
+    container_name: focalors
+    build:
+      context: ./docker/focalors
+      args:
+        USE_APT_MIRROR: 'true' # 是否在构建时使用 apt 镜像
+        USE_NPM_MIRROR: 'true' # 是否在构建时使用 npm 镜像
+    environment:
+      WECHATY_PUPPET: ${WECHATY_PUPPET}
+      WECHATY_PUPPET_PADLOCAL_TOKEN: ${WECHATY_PUPPET_PADLOCAL_TOKEN}
+      FOCALORS_IMAGE_CACHE_DIR: '/app/focalors/images'
+      FOCALORS_YUNZAI_HOST: 'miao-yunzai'
+
+    depends_on:
+      miao-yunzai: { condition: service_healthy }
+
+  miao-yunzai:
+    container_name: miao-yunzai
+    build:
+      context: ./docker/yunzai
+      args:
+        BUNDLE_FFMPEG: 'false' # 是否在构建时打包 ffmpeg
+        BUNDLE_POETRY: 'false' # 是否在构建时打包 poetry
+        USE_APT_MIRROR: 'true' # 是否在构建时使用 apt 镜像
+        USE_NPM_MIRROR: 'true' # 是否在构建时使用 npm 镜像
+        USE_PYPI_MIRROR: 'false' # 是否在构建时使用 pypi 镜像 
+    restart: always
+    volumes:
+      - ./yunzai/config/:/app/Miao-Yunzai/config/config/ # Bot基础配置文件
+      - ./yunzai/genshin_config:/app/Miao-Yunzai/plugins/genshin/config # 公共Cookie，云崽功能配置文件
+      - ./yunzai/logs:/app/Miao-Yunzai/logs # 日志文件
+      - ./yunzai/data:/app/Miao-Yunzai/data # 数据文件
+      - ./yunzai/entrypoint.sh:/app/Miao-Yunzai/entrypoint.sh # 自定义启动脚本
+      - ./yunzai/plugins/genshin-plugin:/app/Miao-Yunzai/plugins/genshin-plugin # 默认映射genshin插件
+      - ./yunzai/plugins/miao-plugin:/app/Miao-Yunzai/plugins/miao-plugin # 默认映射喵喵插件
+      - ./yunzai/plugins/xiaoyao-cvs-plugin:/app/Miao-Yunzai/plugins/xiaoyao-cvs-plugin    # 图鉴插件
+    depends_on:
+      miao-redis: { condition: service_healthy }
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    healthcheck:
+      test: curl --fail http://localhost:2536 || exit 1
+      start_period: 20s
+      interval: 60s
+      retries: 5
+      timeout: 10s
+
+  miao-redis:
+    container_name: miao-redis
+    image: redis:alpine
+    restart: always
+    volumes:
+      # 前往 https://download.redis.io/redis-stable/redis.conf 下载配置文件，放入 ./redis/config 文件夹中
+      # - ./redis/config:/etc/redis/    # Redis配置文件
+      - ./redis/data:/data
+      - ./redis/logs:/logs
+    # command: /etc/redis/redis.conf    # 取消注释以应用Redis配置文件
+    healthcheck:
+      test: [ "CMD", "redis-cli", "PING" ]
+      start_period: 10s
+      interval: 5s
+      timeout: 1s
