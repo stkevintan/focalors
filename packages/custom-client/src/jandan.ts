@@ -161,15 +161,16 @@ export class JanDanClient extends OnebotClient {
                 }
 
                 for (const pic of comment.pics) {
-                    logger.info(`sending pic ${pic}`);
+                    const [url, name] = useCDN(pic);
+                    logger.info(`sending pic ${url}`);
                     await this.sendFile(
                         {
-                            url: pic,
+                            url,
                             type: "url",
-                            name: pic.replace(/.*\//, ""),
+                            name,
                         },
                         from,
-                        pic.endsWith(".gif") ? "wx.emoji" : "image"
+                        url.endsWith(".gif") ? "wx.emoji" : "image"
                     );
                 }
 
@@ -236,4 +237,16 @@ export class JanDanClient extends OnebotClient {
             return "";
         }
     }
+}
+
+/**
+ * replace sina cdn url with toto.im cdn url since sina cdn is blocked for public access
+ * @param url original sina cdn url
+ * @returns
+ */
+function useCDN(url: string): [url: string, name: string] {
+    // https://wx1.sinaimg.cn/mw600/008HL3Tkly1hxuygj36inj30vd18xnb2.jpg
+    // https://img.toto.im/large/88c184bcly1hxuzp0kjeag20b40684qs.gif
+    const file = url.replace(/.*\//, "");
+    return [`https://img.toto.im/large/${file}`, file];
 }
