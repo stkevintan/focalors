@@ -74,6 +74,7 @@ export abstract class OnebotClient implements AsyncService {
         type: "image" | "file" | "wx.emoji" = "image"
     ) {
         const id = await this.wechat.uploadFile(params);
+        logger.info(`upload file: ${params.name} ${id}`);
         this.send(
             [
                 {

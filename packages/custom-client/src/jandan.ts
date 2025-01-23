@@ -161,6 +161,7 @@ export class JanDanClient extends OnebotClient {
                 }
 
                 for (const pic of comment.pics) {
+                    logger.info(`sending pic ${pic}`);
                     await this.sendFile(
                         {
                             url: pic,
