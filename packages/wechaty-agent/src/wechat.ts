@@ -228,6 +228,7 @@ export class Wechaty implements OnebotWechat {
             )
         ).filter((c): c is Contact => c != null);
         let repliedMessage: Message | undefined = undefined;
+        logger.info(`Sending message to ${target.id}: ${messages}`);
         for (const message of messages) {
             switch (message.type) {
                 case "reply":
