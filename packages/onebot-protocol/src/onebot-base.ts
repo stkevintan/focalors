@@ -38,7 +38,6 @@ export abstract class OnebotClient implements AsyncService {
         this.eventSub.on(
             "message",
             (params: { message: MessageSegment[]; target: MessageTarget2 }) => {
-                logger.info(`send message: ${inspect(params)}`);
                 Promise.resolve()
                     .then(() => callback(params.message, params.target))
                     .catch((err) => {
@@ -75,7 +74,6 @@ export abstract class OnebotClient implements AsyncService {
         type: "image" | "file" | "wx.emoji" = "image"
     ) {
         const id = await this.wechat.uploadFile(params);
-        logger.info(`upload file: ${params.name} ${id}`);
         this.send(
             [
                 {

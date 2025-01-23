@@ -19,14 +19,6 @@ export async function gif2Mp4(fileBox: FileBox): Promise<FileBox> {
         const command = ffmpeg(localPath)
             .setFfmpegPath(ffmpegInstaller.path)
             .setFfprobePath(ffprobe.path);
-        logger.info(
-            "gif2mp4 => command:",
-            command,
-            ffmpegInstaller.path,
-            ffprobe.path,
-            existsSync(ffmpegInstaller.path)
-        );
-
         const stream = new FileBoxStream();
         command
             .inputFormat("gif")

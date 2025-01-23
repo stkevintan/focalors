@@ -52,11 +52,26 @@ export class JanDanClient extends OnebotClient {
         super(wechat);
     }
 
+    private timerKey() {
+        return `client:jandan:timer:groups`;
+    }
+
     private key(id: string) {
         return `client:jandan:index:${id}`;
     }
 
     private intervalHandler = new Map<string, NodeJS.Timer>();
+
+    override async start() {
+        await this.initTimer();
+    }
+
+    private async initTimer() {
+        const ids = await this.redis.sEntries(this.timerKey());
+        for (const id of ids) {
+            this.switchTimer(id, true);
+        }
+    }
 
     async recv(
         message: MessageSegment[],
@@ -92,41 +107,54 @@ export class JanDanClient extends OnebotClient {
         }
 
         const id = groupId ?? userId!;
-        const handler = this.intervalHandler.get(id);
 
-        if (/^#\s*煎蛋定时转发\s*开启\s*$/i.test(text)) {
-            if (handler) {
-                clearInterval(handler);
+        if (groupId) {
+            if (/^#\s*煎蛋定时转发\s*开启\s*$/i.test(text)) {
+                await this.redis.sAdd(this.timerKey(), groupId);
+                this.switchTimer(groupId, true);
+                this.sendText(`已开启`, { groupId });
+                return true;
             }
-            this.intervalHandler.set(
-                id,
-                setInterval(async () => {
-                    // only actiate in daytime
-                    const currentHour = new Date().getHours();
-                    if (currentHour >= 9 && currentHour < 23) {
-                        await this.sendJandan(from);
-                    }
-                }, 30 * 60 * 1000)
-            );
-            this.sendText(`已开启`, from);
-            return true;
-        }
 
-        if (/^#\s*煎蛋定时转发\s*关闭\s*$/i.test(text)) {
-            if (handler) {
-                clearInterval(handler);
-                this.intervalHandler.delete(id);
+            if (/^#\s*煎蛋定时转发\s*关闭\s*$/i.test(text)) {
+                await this.redis.sRem(this.timerKey(), groupId);
+                this.switchTimer(groupId, false);
+                this.sendText("已关闭", { groupId });
+                return true;
             }
-            this.sendText("已关闭", from);
-            return true;
         }
 
         if (/^#\s*煎蛋重置\s*$/i.test(text)) {
             await this.redis.del(this.key(id));
+            await this.redis.del(this.timerKey());
             this.sendText("煎蛋状态已重置", from);
             return true;
         }
         return false;
+    }
+
+    private switchTimer(groupId: string, on: boolean) {
+        const handler = this.intervalHandler.get(groupId);
+        if (on) {
+            if (handler) {
+                clearInterval(handler);
+            }
+            this.intervalHandler.set(
+                groupId,
+                setInterval(async () => {
+                    // only actiate in daytime
+                    const currentHour = new Date().getHours();
+                    if (currentHour >= 9 && currentHour < 23) {
+                        await this.sendJandan({ groupId });
+                    }
+                }, 30 * 60 * 1000)
+            );
+        } else {
+            if (handler) {
+                clearInterval(handler);
+                this.intervalHandler.delete(groupId);
+            }
+        }
     }
 
     private async sendJandan(
