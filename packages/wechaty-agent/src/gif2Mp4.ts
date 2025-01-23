@@ -9,14 +9,23 @@ import path from "path";
 import { randomUUID } from "crypto";
 import { rm } from "fs/promises";
 import { inspect } from "util";
+import { existsSync } from "fs";
 
 const logger = createLogger("gif-2-mp4");
 export async function gif2Mp4(fileBox: FileBox): Promise<FileBox> {
     const [localPath, inTmpDir] = await getLocalPath(fileBox);
+    logger.info(`gif2mp4 => converting ${localPath} to mp4`);
     try {
         const command = ffmpeg(localPath)
             .setFfmpegPath(ffmpegInstaller.path)
             .setFfprobePath(ffprobe.path);
+        logger.info(
+            "gif2mp4 => command:",
+            command,
+            ffmpegInstaller.path,
+            ffprobe.path,
+            existsSync(ffmpegInstaller.path)
+        );
 
         const stream = new FileBoxStream();
         command
