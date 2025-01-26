@@ -46,6 +46,7 @@ export class Program implements AsyncService {
                         return false;
                     })
                 ) {
+                    logger.info(`message handled by ${client.constructor.name}`);
                     return;
                 }
             }

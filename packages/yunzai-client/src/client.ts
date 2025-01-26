@@ -224,18 +224,17 @@ export class YunzaiClient extends OnebotClient {
             (m): m is TextMessageSegment => m.type === "text"
         );
         if (!segment) {
-            logger.warn(`No text message, skip...`);
             return false;
         }
 
-        if (!/(^\s*[#*])|_MHYUUID/.test(segment.data.text)) {
-            logger.warn(`Message without prefix # or *, skip...`);
+        if (!/(^\s*[#*%])|_MHYUUID/.test(segment.data.text)) {
             return false;
         }
 
         if (segment.data.text.startsWith("#!")) {
             segment.data.text = segment.data.text.substring(2);
         }
+
         const target: MessageTarget =
             typeof from === "object"
                 ? {
