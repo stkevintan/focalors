@@ -51,9 +51,7 @@ export class JanDanClient extends OnebotClient {
         super(wechat);
     }
 
-    private timerKey() {
-        return `client:jandan:timer:groups`;
-    }
+    private timerKey = `client:jandan:timer:groups`;
 
     private key(id: string) {
         return `client:jandan:index:${id}`;
@@ -66,7 +64,8 @@ export class JanDanClient extends OnebotClient {
     }
 
     private async initTimer() {
-        const ids = await this.redis.sEntries(this.timerKey());
+        const ids = await this.redis.sEntries(this.timerKey);
+        logger.debug(`init timer for groups: ${Array.from(ids).join(", ")}`);
         for (const id of ids) {
             this.switchTimer(id, true);
         }
@@ -109,14 +108,14 @@ export class JanDanClient extends OnebotClient {
 
         if (groupId) {
             if (/^#\s*煎蛋定时转发\s*开启\s*$/i.test(text)) {
-                await this.redis.sAdd(this.timerKey(), groupId);
+                await this.redis.sAdd(this.timerKey, groupId);
                 this.switchTimer(groupId, true);
                 this.sendText(`已开启`, new MessageTarget2({ groupId }));
                 return true;
             }
 
             if (/^#\s*煎蛋定时转发\s*关闭\s*$/i.test(text)) {
-                await this.redis.sRem(this.timerKey(), groupId);
+                await this.redis.sRem(this.timerKey, groupId);
                 this.switchTimer(groupId, false);
                 this.sendText("已关闭", new MessageTarget2({ groupId }));
                 return true;
@@ -125,7 +124,7 @@ export class JanDanClient extends OnebotClient {
 
         if (/^#\s*煎蛋重置\s*$/i.test(text)) {
             await this.redis.del(this.key(id));
-            await this.redis.del(this.timerKey());
+            await this.redis.del(this.timerKey);
             this.sendText("煎蛋状态已重置", from);
             return true;
         }
@@ -138,6 +137,7 @@ export class JanDanClient extends OnebotClient {
             if (handler) {
                 clearInterval(handler);
             }
+            logger.info(`start timer for group ${groupId}`);
             this.intervalHandler.set(
                 groupId,
                 setInterval(async () => {
