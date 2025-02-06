@@ -9,9 +9,62 @@ import {
     UploadFileAction,
     FriendInfo,
     GroupInfo,
+    MessageTarget,
 } from "./comwechat";
 
-export type MessageTarget2 = string | { groupId: string; userId?: string };
+// export type MessageTarget2 = string | { groupId: string; userId?: string };
+
+export class MessageTarget2 {
+    readonly groupId?: string;
+    readonly userId?: string;
+
+    static fromMessageTarget(target: MessageTarget): MessageTarget2 {
+        if (target.detail_type === "group") {
+            return new MessageTarget2({
+                groupId: target.group_id,
+                userId: target.user_id,
+            });
+        }
+        if (target.detail_type === "private") {
+            return new MessageTarget2(target.user_id);
+        }
+        throw new Error("Invalid message target");
+    }
+    
+    constructor(id: string | { groupId: string; userId?: string }) {
+        if (typeof id === "string") {
+            this.userId = id;
+        } else {
+            this.groupId = id.groupId;
+            this.userId = id.userId;
+        }
+    }
+
+    isGroup(): this is { groupId: string; userId?: string } {
+        return !!this.groupId;
+    }
+
+    isPrivate(): this is { groupId: undefined; userId: string } {
+        return !this.groupId;
+    }
+
+    toMessageTarget(): MessageTarget {
+        if (this.isGroup()) {
+            return {
+                detail_type: "group",
+                group_id: this.groupId,
+                user_id: this.userId,
+            };
+        }
+        if (this.isPrivate()) {
+            return {
+                detail_type: "private",
+                user_id: this.userId,
+            };
+        }
+        throw new Error("Invalid message target");
+    }
+}
 
 export type AbstractActionMap = Omit<
     KnownActionMap,
@@ -114,12 +167,12 @@ export interface OnebotWechat extends AsyncService {
     downloadImage(msgId: string): Promise<string>;
 }
 
-export function expandTarget(
-    target: MessageTarget2
-):
-    | { groupId: string; userId?: string }
-    | { groupId: undefined; userId: string } {
-    return typeof target === "string"
-        ? { groupId: undefined, userId: target }
-        : target;
-}
+// export function expandTarget(
+//     target: MessageTarget
+// ):
+//     | { groupId: string; userId?: string }
+//     | { groupId: undefined; userId: string } {
+//     return typeof target === "string"
+//         ? { groupId: undefined, userId: target }
+//         : target;
+// }

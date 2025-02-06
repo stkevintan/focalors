@@ -1,7 +1,6 @@
 import {
     AccessManager,
     CardMessageSegment,
-    expandTarget,
     injectAccessManager,
     MessageSegment,
     MessageTarget2,
@@ -52,7 +51,7 @@ export class RandomAbyssClient extends OnebotClient {
             return false;
         }
 
-        const { groupId, userId } = expandTarget(from);
+        const { groupId, userId } = from;
         const out = await this.accessManager.manage(message, userId);
         if (out) {
             this.sendText(out, from);

@@ -17,7 +17,6 @@ import {
     TextMessageSegment,
     OnebotWechatToken,
     MessageTarget2,
-    MessageTarget,
     UploadFileAction,
     BotStatus,
 } from "@focalors/onebot-protocol";
@@ -84,12 +83,7 @@ export class YunzaiClient extends OnebotClient {
         send_message: (params) => {
             this.send(
                 params.message,
-                params.detail_type === "group"
-                    ? {
-                          groupId: params.group_id,
-                          userId: params.user_id,
-                      }
-                    : params.user_id
+                MessageTarget2.fromMessageTarget(params)
             );
             return true;
         },
@@ -235,15 +229,6 @@ export class YunzaiClient extends OnebotClient {
             segment.data.text = segment.data.text.substring(2);
         }
 
-        const target: MessageTarget =
-            typeof from === "object"
-                ? {
-                      detail_type: "group",
-                      group_id: from.groupId,
-                      user_id: from.userId,
-                  }
-                : { detail_type: "private", user_id: from };
-
         this.rawSend({
             type: "message",
             id: randomUUID(),
@@ -256,7 +241,7 @@ export class YunzaiClient extends OnebotClient {
             message,
             alt_message: message.map(alt).join(" "),
             self: this.self,
-            ...target,
+            ...from.toMessageTarget(),
         });
         return true;
     }

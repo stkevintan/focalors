@@ -1,6 +1,5 @@
 import {
     AccessManager,
-    expandTarget,
     injectAccessManager,
     matchPattern,
     MessageSegment,
@@ -43,13 +42,12 @@ export class Dalle3Client extends OnebotClient {
         message: MessageSegment[],
         from: MessageTarget2
     ): Promise<boolean> {
-        const target = expandTarget(from);
-        const out = await this.accessManager.manage(message, target.userId);
+        const out = await this.accessManager.manage(message, from.userId);
         if (out) {
             this.sendText(out, from);
             return true;
         }
-        if (!(await this.accessManager.check(target.userId, target.groupId))) {
+        if (!(await this.accessManager.check(from.userId, from.groupId))) {
             return false;
         }
         if (!matchPattern(message, /^\/(img|imagine prompt:)/)) {

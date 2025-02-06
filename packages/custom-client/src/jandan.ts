@@ -1,7 +1,6 @@
 import { createLogger } from "@focalors/logger";
 import {
     AccessManager,
-    expandTarget,
     injectAccessManager,
     MessageSegment,
     MessageTarget2,
@@ -12,7 +11,7 @@ import {
     TextMessageSegment,
 } from "@focalors/onebot-protocol";
 import { inject, injectable } from "tsyringe";
-import { bold } from "./utils/bold";
+import { bold } from "@focalors/logger";
 
 const logger = createLogger("jandan-client");
 
@@ -85,7 +84,7 @@ export class JanDanClient extends OnebotClient {
             return false;
         }
 
-        const { groupId, userId } = expandTarget(from);
+        const { groupId, userId } = from;
         const out = await this.accessManager.manage(message, userId);
         if (out) {
             this.sendText(out, from);
@@ -112,14 +111,14 @@ export class JanDanClient extends OnebotClient {
             if (/^#\s*煎蛋定时转发\s*开启\s*$/i.test(text)) {
                 await this.redis.sAdd(this.timerKey(), groupId);
                 this.switchTimer(groupId, true);
-                this.sendText(`已开启`, { groupId });
+                this.sendText(`已开启`, new MessageTarget2({ groupId }));
                 return true;
             }
 
             if (/^#\s*煎蛋定时转发\s*关闭\s*$/i.test(text)) {
                 await this.redis.sRem(this.timerKey(), groupId);
                 this.switchTimer(groupId, false);
-                this.sendText("已关闭", { groupId });
+                this.sendText("已关闭", new MessageTarget2({ groupId }));
                 return true;
             }
         }
@@ -145,7 +144,7 @@ export class JanDanClient extends OnebotClient {
                     // only actiate in daytime
                     const currentHour = new Date().getHours();
                     if (currentHour >= 9 && currentHour < 23) {
-                        await this.sendJandan({ groupId });
+                        await this.sendJandan(new MessageTarget2({ groupId }));
                     }
                 }, 30 * 60 * 1000)
             );
@@ -176,7 +175,7 @@ export class JanDanClient extends OnebotClient {
             } = await fetch(commentUrl, {
                 headers,
             }).then((r) => r.json());
-            const { userId, groupId } = expandTarget(from);
+            const { userId, groupId } = from;
             const key = this.key(groupId ?? userId!);
             for (const comment of resp.comments) {
                 logger.info(`processing comment ${comment.comment_ID}`);

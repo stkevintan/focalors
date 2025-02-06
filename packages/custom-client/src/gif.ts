@@ -2,7 +2,7 @@ import {
     matchPattern,
     MessageSegment,
     MessageTarget2,
-    OnebotClient,
+    OnebotClient
 } from "@focalors/onebot-protocol";
 import { randomUUID } from "crypto";
 import { injectable } from "tsyringe";

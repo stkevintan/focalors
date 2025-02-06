@@ -1,6 +1,5 @@
 import {
     AccessManager,
-    expandTarget,
     injectAccessManager,
     MessageSegment,
     MessageTarget2,
@@ -18,7 +17,7 @@ import assert from "assert";
 import { ChatCompletionMessageParam } from "openai/resources";
 import { APIError } from "openai/error";
 import { getPrompt, stripCommandAndAt } from "./utils";
-import { createLogger, Logger } from "@focalors/logger";
+import { bold, createLogger, Logger } from "@focalors/logger";
 import { inspect } from "util";
 
 const logger: Logger = createLogger("gpt-client");
@@ -45,19 +44,16 @@ export class GPTClient extends OnebotClient {
         message: MessageSegment[],
         from: MessageTarget2
     ): Promise<boolean> {
-        const target = expandTarget(from);
-        const out = await this.accessManager.manage(message, target.userId);
+        const out = await this.accessManager.manage(message, from.userId);
         if (out) {
             this.sendText(out, from);
             return true;
         }
 
-        if (
-            !(await this.accessManager.check(target.userId, target.groupId))
-        ) {
+        if (!(await this.accessManager.check(from.userId, from.groupId))) {
             return false;
         }
-        const key = createConversationKey(target.groupId || target.userId!);
+        const key = createConversationKey(from.groupId || from.userId!);
 
         if (matchPattern(message, /^\/gpt\s+clear\s*$/)) {
             await this.redis.del(key);
@@ -65,9 +61,9 @@ export class GPTClient extends OnebotClient {
             return true;
         }
         const prefixedGpt = matchPattern(message, /^\/gpt\s+/);
-        const privateChat = !target.groupId;
+        const privateChat = !from.groupId;
         const groupAt =
-            target.groupId &&
+            from.groupId &&
             message.some(
                 (m) =>
                     (m.type === "mention" || m.type === "reply") &&
@@ -80,20 +76,17 @@ export class GPTClient extends OnebotClient {
 
         if (!prefixedGpt && !(privateChat || groupAt)) {
             logger.info(
-                `I am not replied or mentioned in group ${target.groupId}, skip...`
+                `I am not replied or mentioned in group ${from.groupId}, skip...`
             );
             return false;
         }
         const [text, reply] = getPrompt(message, this.configuration.tokenLimit);
-        if (!text) {
-            return false;
-        }
-        const name = target.groupId ? target.userId! : undefined;
+        const name = from.groupId ? from.userId! : undefined;
 
         // store prompts in reverse order
-        const prompt: ChatCompletionMessageParam[] = [
-            { role: "user", content: text, name },
-        ];
+        const prompt: ChatCompletionMessageParam[] = text
+            ? [{ role: "user", content: text, name }]
+            : [];
         let keepContext = true;
         if (reply) {
             const {
@@ -118,7 +111,7 @@ export class GPTClient extends OnebotClient {
                 logger.debug(`Prepended assistant context: %s`, content);
             }
 
-            if (messageType === "image") {
+            if (messageType === "image" && text) {
                 if (!prefixedGpt) {
                     return true;
                 }
@@ -147,12 +140,15 @@ export class GPTClient extends OnebotClient {
             }
         }
 
+        if (prompt.length === 0) {
+            return false;
+        }
+
         try {
             const assistant = await this.completion(
                 prompt,
                 keepContext ? key : undefined
             );
-            assert(assistant, `Assistant returned with empty`);
             this.sendText(assistant, from);
             logger.info(`Completion processed`);
             return true;
@@ -177,6 +173,7 @@ export class GPTClient extends OnebotClient {
         const messages = contextKey
             ? await this.createConversation(prompt, contextKey)
             : prompt;
+
         const completion = await this.openai.chat.completions.create({
             messages,
             model: this.configuration.deployment ?? "",
@@ -202,7 +199,10 @@ export class GPTClient extends OnebotClient {
                 },
             ]);
         }
-        return assistant;
+        const prefix = bold(
+            `[${messages.length}/${this.configuration.contextLength}] `
+        );
+        return `${prefix}${assistant ?? ""}`;
     }
 
     private async createConversation(
@@ -249,4 +249,3 @@ function matchPattern(message: MessageSegment[], pattern: RegExp) {
 function createConversationKey(id: string) {
     return `gpt:prompt:${id}`;
 }
-
