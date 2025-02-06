@@ -31,7 +31,7 @@ export class MessageTarget2 {
         throw new Error("Invalid message target");
     }
     
-    constructor(id: string | { groupId: string; userId?: string }) {
+    constructor(id: string | { groupId?: string; userId?: string }) {
         if (typeof id === "string") {
             this.userId = id;
         } else {

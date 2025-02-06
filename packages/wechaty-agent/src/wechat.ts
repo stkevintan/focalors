@@ -89,7 +89,10 @@ export class Wechaty implements OnebotWechat {
             }
             callback(
                 segment,
-                room ? { groupId: room.id, userId: talker.id } : talker.id
+                new MessageTarget2({
+                    groupId: room?.id,
+                    userId: talker.id,
+                })
             );
         });
     }
@@ -204,11 +207,8 @@ export class Wechaty implements OnebotWechat {
 
     async send(
         messages: MessageSegment[],
-        to: string | { groupId: string; userId?: string }
+        { groupId, userId }: MessageTarget2
     ) {
-        const { groupId, userId } =
-            typeof to === "string" ? { userId: to, groupId: undefined } : to;
-
         const target = groupId
             ? await this.bot.Room.find({ id: groupId })
             : userId
@@ -321,7 +321,7 @@ export class Wechaty implements OnebotWechat {
         }
 
         let name = payload.name ?? randomUUID();
-        name = name.replace(/\?[^.]*$/, '');
+        name = name.replace(/\?[^.]*$/, "");
         if (!path.extname(name)) {
             name += defaultExt;
         }
