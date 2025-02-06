@@ -42,12 +42,25 @@ export class Wechaty implements OnebotWechat {
         await this.bot.start();
         this.bot.on("scan", onScan);
         await this.bot.ready();
-        await new Promise<void>((res) =>
-            this.bot.once("login", () => {
-                logger.info("wechaty logged in");
-                res();
-            })
-        );
+        const onevent = (event: "login" | "message", callback: () => void) => {
+            this.bot.on(event, callback);
+            return () => this.bot.off(event, callback);
+        };
+        logger.info('Waiting for signal of wechat logged in');
+        const listeners: Array<() => void> = [];
+        await new Promise<void>((res) => {
+            listeners.push(
+                onevent("login", () => {
+                    logger.info("wechaty logged in");
+                    res();
+                }),
+                onevent("message", () => {
+                    logger.info("wechaty message");
+                    res();
+                })
+            );
+        });
+        listeners.forEach((l) => l());
         logger.info("wechat started");
     }
 
