@@ -147,9 +147,10 @@ export class WechatFerry implements OnebotWechat {
 
             callback(
                 msgSegments,
-                message.isGroup
-                    ? { groupId: message.roomId, userId: message.sender }
-                    : message.sender
+                new MessageTarget2({
+                    groupId: message.roomId,
+                    userId: message.sender,
+                })
             );
         });
     }
@@ -323,11 +324,8 @@ export class WechatFerry implements OnebotWechat {
 
     async send(
         messages: MessageSegment[],
-        to: string | { groupId: string; userId?: string }
+        { groupId, userId }: MessageTarget2
     ) {
-        const { groupId, userId } =
-            typeof to === "string" ? { userId: to, groupId: undefined } : to;
-
         const mentions = groupId
             ? await Promise.all(
                   messages

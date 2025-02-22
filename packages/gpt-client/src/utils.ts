@@ -34,11 +34,7 @@ export function getPrompt(
     }
     if (
         replySegment &&
-        (
-            ["text", "image"] as Array<
-                ReplyMessageSegment["data"]["message_type"]
-            >
-        ).includes(replySegment.data.message_type)
+        ["text", "image"].includes(replySegment.data.message_type)
     ) {
         logger.info("Processing prompt with context: %s", text);
         return [text, replySegment.data];

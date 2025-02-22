@@ -1,7 +1,6 @@
 import { createLogger } from "@focalors/logger";
 import {
     AccessManager,
-    expandTarget,
     injectAccessManager,
     MessageSegment,
     MessageTarget2,
@@ -12,7 +11,7 @@ import {
     TextMessageSegment,
 } from "@focalors/onebot-protocol";
 import { inject, injectable } from "tsyringe";
-import { bold } from "./utils/bold";
+import { bold } from "@focalors/logger";
 
 const logger = createLogger("jandan-client");
 
@@ -52,11 +51,25 @@ export class JanDanClient extends OnebotClient {
         super(wechat);
     }
 
+    private timerKey = `client:jandan:timer:groups`;
+
     private key(id: string) {
         return `client:jandan:index:${id}`;
     }
 
     private intervalHandler = new Map<string, NodeJS.Timer>();
+
+    override async start() {
+        await this.initTimer();
+    }
+
+    private async initTimer() {
+        const ids = await this.redis.sEntries(this.timerKey);
+        logger.debug(`init timer for groups: ${Array.from(ids).join(", ")}`);
+        for (const id of ids) {
+            this.switchTimer(id, true);
+        }
+    }
 
     async recv(
         message: MessageSegment[],
@@ -70,7 +83,7 @@ export class JanDanClient extends OnebotClient {
             return false;
         }
 
-        const { groupId, userId } = expandTarget(from);
+        const { groupId, userId } = from;
         const out = await this.accessManager.manage(message, userId);
         if (out) {
             this.sendText(out, from);
@@ -92,41 +105,55 @@ export class JanDanClient extends OnebotClient {
         }
 
         const id = groupId ?? userId!;
-        const handler = this.intervalHandler.get(id);
 
-        if (/^#\s*煎蛋定时转发\s*开启\s*$/i.test(text)) {
-            if (handler) {
-                clearInterval(handler);
+        if (groupId) {
+            if (/^#\s*煎蛋定时转发\s*开启\s*$/i.test(text)) {
+                await this.redis.sAdd(this.timerKey, groupId);
+                this.switchTimer(groupId, true);
+                this.sendText(`已开启`, new MessageTarget2({ groupId }));
+                return true;
             }
-            this.intervalHandler.set(
-                id,
-                setInterval(async () => {
-                    // only actiate in daytime
-                    const currentHour = new Date().getHours();
-                    if (currentHour >= 9 && currentHour < 23) {
-                        await this.sendJandan(from);
-                    }
-                }, 30 * 60 * 1000)
-            );
-            this.sendText(`已开启`, from);
-            return true;
-        }
 
-        if (/^#\s*煎蛋定时转发\s*关闭\s*$/i.test(text)) {
-            if (handler) {
-                clearInterval(handler);
-                this.intervalHandler.delete(id);
+            if (/^#\s*煎蛋定时转发\s*关闭\s*$/i.test(text)) {
+                await this.redis.sRem(this.timerKey, groupId);
+                this.switchTimer(groupId, false);
+                this.sendText("已关闭", new MessageTarget2({ groupId }));
+                return true;
             }
-            this.sendText("已关闭", from);
-            return true;
         }
 
         if (/^#\s*煎蛋重置\s*$/i.test(text)) {
             await this.redis.del(this.key(id));
+            await this.redis.del(this.timerKey);
             this.sendText("煎蛋状态已重置", from);
             return true;
         }
         return false;
+    }
+
+    private switchTimer(groupId: string, on: boolean) {
+        const handler = this.intervalHandler.get(groupId);
+        if (on) {
+            if (handler) {
+                clearInterval(handler);
+            }
+            logger.info(`start timer for group ${groupId}`);
+            this.intervalHandler.set(
+                groupId,
+                setInterval(async () => {
+                    // only actiate in daytime
+                    const currentHour = new Date().getHours();
+                    if (currentHour >= 9 && currentHour < 23) {
+                        await this.sendJandan(new MessageTarget2({ groupId }));
+                    }
+                }, 30 * 60 * 1000)
+            );
+        } else {
+            if (handler) {
+                clearInterval(handler);
+                this.intervalHandler.delete(groupId);
+            }
+        }
     }
 
     private async sendJandan(
@@ -148,7 +175,7 @@ export class JanDanClient extends OnebotClient {
             } = await fetch(commentUrl, {
                 headers,
             }).then((r) => r.json());
-            const { userId, groupId } = expandTarget(from);
+            const { userId, groupId } = from;
             const key = this.key(groupId ?? userId!);
             for (const comment of resp.comments) {
                 logger.info(`processing comment ${comment.comment_ID}`);
@@ -161,14 +188,16 @@ export class JanDanClient extends OnebotClient {
                 }
 
                 for (const pic of comment.pics) {
+                    const [url, name] = useCDN(pic);
+                    logger.info(`sending pic ${url}`);
                     await this.sendFile(
                         {
-                            url: pic,
+                            url,
                             type: "url",
-                            name: pic.replace(/.*\//, ""),
+                            name,
                         },
                         from,
-                        pic.endsWith(".gif") ? "wx.emoji" : "image"
+                        url.endsWith(".gif") ? "wx.emoji" : "image"
                     );
                 }
 
@@ -235,4 +264,16 @@ export class JanDanClient extends OnebotClient {
             return "";
         }
     }
+}
+
+/**
+ * replace sina cdn url with toto.im cdn url since sina cdn is blocked for public access
+ * @param url original sina cdn url
+ * @returns
+ */
+function useCDN(url: string): [url: string, name: string] {
+    // https://wx1.sinaimg.cn/mw600/008HL3Tkly1hxuygj36inj30vd18xnb2.jpg
+    // https://img.toto.im/large/88c184bcly1hxuzp0kjeag20b40684qs.gif
+    const file = url.replace(/.*\//, "");
+    return [`https://img.toto.im/large/${file}`, file];
 }

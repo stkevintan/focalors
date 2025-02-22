@@ -42,12 +42,25 @@ export class Wechaty implements OnebotWechat {
         await this.bot.start();
         this.bot.on("scan", onScan);
         await this.bot.ready();
-        await new Promise<void>((res) =>
-            this.bot.once("login", () => {
-                logger.info("wechaty logged in");
-                res();
-            })
-        );
+        const onevent = (event: "login" | "message", callback: () => void) => {
+            this.bot.on(event, callback);
+            return () => this.bot.off(event, callback);
+        };
+        logger.info('Waiting for signal of wechat logged in');
+        const listeners: Array<() => void> = [];
+        await new Promise<void>((res) => {
+            listeners.push(
+                onevent("login", () => {
+                    logger.info("wechaty logged in");
+                    res();
+                }),
+                onevent("message", () => {
+                    logger.info("wechaty message");
+                    res();
+                })
+            );
+        });
+        listeners.forEach((l) => l());
         logger.info("wechat started");
     }
 
@@ -89,7 +102,10 @@ export class Wechaty implements OnebotWechat {
             }
             callback(
                 segment,
-                room ? { groupId: room.id, userId: talker.id } : talker.id
+                new MessageTarget2({
+                    groupId: room?.id,
+                    userId: talker.id,
+                })
             );
         });
     }
@@ -186,7 +202,7 @@ export class Wechaty implements OnebotWechat {
             groups.map(async (group) => ({
                 group_id: group.id,
                 group_name: await group.topic(),
-                "wx.avatar": group.payload?.avatar,
+                // "wx.avatar": group.payload?.avatar,
             }))
         );
     }
@@ -204,11 +220,8 @@ export class Wechaty implements OnebotWechat {
 
     async send(
         messages: MessageSegment[],
-        to: string | { groupId: string; userId?: string }
+        { groupId, userId }: MessageTarget2
     ) {
-        const { groupId, userId } =
-            typeof to === "string" ? { userId: to, groupId: undefined } : to;
-
         const target = groupId
             ? await this.bot.Room.find({ id: groupId })
             : userId
@@ -321,7 +334,7 @@ export class Wechaty implements OnebotWechat {
         }
 
         let name = payload.name ?? randomUUID();
-        name = name.replace(/\?[^.]*$/, '');
+        name = name.replace(/\?[^.]*$/, "");
         if (!path.extname(name)) {
             name += defaultExt;
         }
