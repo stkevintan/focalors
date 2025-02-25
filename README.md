@@ -9,8 +9,16 @@ cd focalors
 
 2. Create `.env` on the project root with your wechaty configurations:
 ```
+# wechaty setting 
 WECHATY_PUPPET=wechaty-puppet-padlocal
 WECHATY_PUPPET_PADLOCAL_TOKEN=puppet_padlocal_xxxxxxxxxxxxxxxxxxxxx
+# azure openai setting
+OPENAI_ENDPOINT="https://....."
+OPENAI_DEPLOYMENT="..."
+OPENAI_DALLE_DEPLOYMENT="..."
+OPENAI_APIKEY="...."
+# yunzai setting
+MASTER_ID="wxid_....."
 ```
 3. Run docker compose with root priviledge:
 ```shell

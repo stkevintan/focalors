@@ -5,18 +5,17 @@ services:
     build:
       context: ./docker/focalors
       args:
-        USE_APT_MIRROR: 'true' # 是否在构建时使用 apt 镜像
-        USE_NPM_MIRROR: 'true' # 是否在构建时使用 npm 镜像
+        REPO_URL: "https://github.com/stkevintan/focalors.git"
+        REPO_BRANCH: "master"
     environment:
-      WECHATY_PUPPET: ${WECHATY_PUPPET}
-      WECHATY_PUPPET_PADLOCAL_TOKEN: ${WECHATY_PUPPET_PADLOCAL_TOKEN}
-      FOCALORS_IMAGE_CACHE_DIR: '/app/focalors/images'
-      FOCALORS_YUNZAI_HOST: 'miao-yunzai'
+      TZ: Asia/Shanghai
+      FOCALORS_YUNZAI_HOST: miao-yunzai
+      REDIS_URI: redis://miao-redis:6379
     volumes:
-      - ./focalors/images:/app/focalors/images
       - ./focalors/logs/wechat-bridge:/app/focalors/packages/wechat-bridge/logs
       - ./focalors/logs/yunzai-client:/app/focalors/packages/yunzai-client/logs
-
+      - ./focalors/entrypoint.sh:/entrypoint.sh
+    restart: always
     depends_on:
       miao-yunzai: { condition: service_healthy }
 
@@ -25,29 +24,17 @@ services:
     build:
       context: ./docker/yunzai
       args:
-        BUNDLE_FFMPEG: 'false' # 是否在构建时打包 ffmpeg
-        BUNDLE_POETRY: 'false' # 是否在构建时打包 poetry
-        USE_APT_MIRROR: 'true' # 是否在构建时使用 apt 镜像
-        USE_NPM_MIRROR: 'true' # 是否在构建时使用 npm 镜像
-        USE_PYPI_MIRROR: 'false' # 是否在构建时使用 pypi 镜像 
+        REPO_URL: "https://gitee.com/TimeRainStarSky/Yunzai.git"
+        REPO_BRANCH: "main"
     restart: always
-    # ports:
-    #   - "50831:50831"                                                 # 映射锅巴插件端口，格式"主机端口:容器内部端口"
     volumes:
       - ./yunzai/config/:/app/Miao-Yunzai/config/config/ # Bot基础配置文件
-      - ./yunzai/genshin_config:/app/Miao-Yunzai/plugins/genshin/config # 公共Cookie，云崽功能配置文件
       - ./yunzai/logs:/app/Miao-Yunzai/logs # 日志文件
       - ./yunzai/data:/app/Miao-Yunzai/data # 数据文件
-      # 以下目录是插件目录，安装完插件后需要手动添加映射（如有其他插件请自行添加）
-      # 映射格式：./yunzai/plugins/<插件目录名>:/app/Miao-Yunzai/plugins/<插件目录名>
-      # - ./yunzai/plugins/example:/app/Miao-Yunzai/plugins/example                          # 单js插件目录
-      - ./yunzai/plugins/miao-plugin:/app/Miao-Yunzai/plugins/miao-plugin # 默认映射喵喵插件
-      # - ./yunzai/plugins/py-plugin:/app/Miao-Yunzai/plugins/py-plugin                      # 新py插件
-      # - ./yunzai/plugins/xiaoyao-cvs-plugin:/app/Miao-Yunzai/plugins/xiaoyao-cvs-plugin    # 图鉴插件
-      #### [警告] 受云崽架构和docker特性限制，使用锅巴插件安装的插件无法持久化，销毁容器后新安装的插件会消失，请谨慎使用 ####
-      # - ./yunzai/plugins/Guoba-Plugin:/app/Miao-Yunzai/plugins/Guoba-Plugin                # 锅巴插件
+      - ./yunzai/entrypoint.sh:/entrypoint.sh # 自定义启动脚本
+      - ./yunzai/plugins:/app/Miao-Yunzai/plugins #plugin 目录
     depends_on:
-      redis: { condition: service_healthy }
+      miao-redis: { condition: service_healthy }
     deploy:
       resources:
         limits:
@@ -59,7 +46,7 @@ services:
       retries: 5
       timeout: 10s
 
-  redis:
+  miao-redis:
     container_name: miao-redis
     image: redis:alpine
     restart: always
