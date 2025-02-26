@@ -1,5 +1,3 @@
-FROM busybox:latest AS resource
-
 FROM node:16-slim AS runtime
 
 ARG REPO_URL=https://github.com/stkevintan/focalors

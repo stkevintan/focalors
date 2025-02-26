@@ -1,5 +1,3 @@
-FROM busybox:latest AS resource
-
 FROM node:16-slim AS runtime
 
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
