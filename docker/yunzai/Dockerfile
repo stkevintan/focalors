@@ -1,4 +1,4 @@
-FROM node:16-slim AS runtime
+FROM node:23 AS runtime
 
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
@@ -24,4 +24,4 @@ RUN sed -i "s/deb.debian.org/mirrors.ustc.edu.cn/g" /etc/apt/sources.list && \
     rm -rf /tmp/*
 
 WORKDIR /app/Miao-Yunzai
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]

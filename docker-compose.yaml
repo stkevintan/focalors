@@ -1,4 +1,3 @@
-version: "3"
 services:
   focalors:
     container_name: focalors
@@ -11,10 +10,11 @@ services:
       TZ: Asia/Shanghai
       FOCALORS_YUNZAI_HOST: miao-yunzai
       REDIS_URI: redis://miao-redis:6379
+    env_file: .env
     volumes:
-      - ./focalors/logs/wechat-bridge:/app/focalors/packages/wechat-bridge/logs
-      - ./focalors/logs/yunzai-client:/app/focalors/packages/yunzai-client/logs
-      - ./focalors/entrypoint.sh:/entrypoint.sh
+      - ./docker/focalors/logs/wechat-bridge:/app/focalors/packages/wechat-bridge/logs
+      - ./docker/focalors/logs/yunzai-client:/app/focalors/packages/yunzai-client/logs
+      - ./docker/focalors/entrypoint.sh:/entrypoint.sh
     restart: always
     depends_on:
       miao-yunzai: { condition: service_healthy }
@@ -28,13 +28,14 @@ services:
         REPO_BRANCH: "main"
     restart: always
     volumes:
-      - ./yunzai/config/:/app/Miao-Yunzai/config/config/ # Bot基础配置文件
-      - ./yunzai/logs:/app/Miao-Yunzai/logs # 日志文件
-      - ./yunzai/data:/app/Miao-Yunzai/data # 数据文件
-      - ./yunzai/entrypoint.sh:/entrypoint.sh # 自定义启动脚本
-      - ./yunzai/plugins:/app/Miao-Yunzai/plugins #plugin 目录
+      - ./docker/yunzai/config/:/app/Miao-Yunzai/config/config/ # Bot基础配置文件
+      - ./docker/yunzai/logs:/app/Miao-Yunzai/logs # 日志文件
+      - ./docker/yunzai/data:/app/Miao-Yunzai/data # 数据文件
+      - ./docker/yunzai/entrypoint.sh:/entrypoint.sh # 自定义启动脚本
+      - ./docker/yunzai/plugins:/app/Miao-Yunzai/plugins #plugin 目录
     depends_on:
       miao-redis: { condition: service_healthy }
+    env_file: .env
     deploy:
       resources:
         limits:
@@ -53,8 +54,8 @@ services:
     volumes:
       # 前往 https://download.redis.io/redis-stable/redis.conf 下载配置文件，放入 ./redis/config 文件夹中
       # - ./redis/config:/etc/redis/    # Redis配置文件
-      - ./redis/data:/data
-      - ./redis/logs:/logs
+      - ./docker/redis/data:/data
+      - ./docker/redis/logs:/logs
     # command: /etc/redis/redis.conf    # 取消注释以应用Redis配置文件
     healthcheck:
       test: [ "CMD", "redis-cli", "PING" ]

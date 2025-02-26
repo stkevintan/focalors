@@ -4,5 +4,7 @@ external/
 logs/
 /yunzai/
 /focalors/
+/plugins
 .env
 .nx
+data

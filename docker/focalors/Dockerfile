@@ -1,4 +1,4 @@
-FROM node:16-slim AS runtime
+FROM node:23 AS runtime
 
 ARG REPO_URL=https://github.com/stkevintan/focalors
 ARG REPO_BRANCH=master
@@ -19,4 +19,4 @@ RUN sed -i "s/deb.debian.org/mirrors.ustc.edu.cn/g" /etc/apt/sources.list && \
 
 WORKDIR /app/focalors
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
