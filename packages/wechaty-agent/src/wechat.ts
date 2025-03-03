@@ -65,7 +65,9 @@ export class Wechaty implements OnebotWechat {
     }
 
     async stop() {
-        await this.bot.logout();
+        if (/1|true/.test(process.env['WECHATY_LOGOUT_ON_STOP'] || '')) {
+            await this.bot.logout();
+        }
         await this.bot.stop();
     }
 

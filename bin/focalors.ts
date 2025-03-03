@@ -27,19 +27,22 @@ async function main() {
         await program.start();
         process.send?.("ready");
 
-        async function exitHandler() {
+        async function exitHandler(reason?: string) {
             rootLogger.info("Gracefully shutting down...");
+            if (reason) {
+                rootLogger.info(`Reason: ${reason}`);
+            }
             await program.stop().finally(() => {
                 rootLogger.flush(() => process.exit(0));
             });
         }
 
         // catches ctrl+c event
-        process.on("SIGINT", exitHandler);
+        process.on("SIGINT", e => exitHandler(`SIGINT: ${e}`));
 
         // catches "kill pid" (for example: nodemon restart)
-        process.on("SIGUSR1", exitHandler);
-        process.on("SIGUSR2", exitHandler);
+        process.on("SIGUSR1", e => exitHandler(`SIGUSR1: ${e}`));
+        process.on("SIGUSR2", e => exitHandler(`SIGUSR2: ${e}`));
 
         // catches uncaught exceptions
         process.on("uncaughtException", (e) => {
@@ -49,7 +52,7 @@ async function main() {
         // Windows graceful stop
         process.on("message", function (msg) {
             if (msg == "shutdown") {
-                void exitHandler();
+                void exitHandler(`PM2 shutdown`);
             }
         });
     } catch (err) {
