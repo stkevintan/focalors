@@ -32,9 +32,14 @@ services:
       - ./docker/yunzai/logs:/app/Miao-Yunzai/logs # 日志文件
       - ./docker/yunzai/data:/app/Miao-Yunzai/data # 数据文件
       - ./docker/yunzai/entrypoint.sh:/entrypoint.sh # 自定义启动脚本
-      - ./docker/yunzai/plugins:/app/Miao-Yunzai/plugins #plugin 目录
+      #plugin 目录,不能挂载整个目录
+      - ./docker/yunzai/plugins/genshin:/app/Miao-Yunzai/plugins/genshin
+      - ./docker/yunzai/plugins/miao-plugin:/app/Miao-Yunzai/plugins/miao-plugin
+      - ./docker/yunzai/plugins/xiaoyao-csv-plugin:/app/Miao-Yunzai/plugins/xiaoyao-csv-plugin
     depends_on:
       miao-redis: { condition: service_healthy }
+    ports:
+      - 2536:2536
     env_file: .env
     deploy:
       resources:
@@ -51,6 +56,8 @@ services:
     container_name: miao-redis
     image: redis:alpine
     restart: always
+    ports:
+      - 6379:6379
     volumes:
       # 前往 https://download.redis.io/redis-stable/redis.conf 下载配置文件，放入 ./redis/config 文件夹中
       # - ./redis/config:/etc/redis/    # Redis配置文件
