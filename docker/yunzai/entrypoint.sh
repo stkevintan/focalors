@@ -54,7 +54,12 @@ sync_plugin() {
         if [ -n "$(git status -s)" ]; then
             git reset --hard HEAD
         fi
-        git pull --allow-unrelated-histories
+        if ! git pull --allow-unrelated-histories; then
+            printf "%b\n" "\n ${Warn} ${YellowBG} 拉取 ${plugin_name} 更新失败，删除插件目录并重新克隆 ${Font} \n"
+            cd "$WORK_DIR/plugins" || exit 1
+            rm -rf "$plugin_name"
+            sync_plugin "$repo_url" "$plugin_name" "true"
+        fi
     elif [ "$clone_if_not_exists" = "true" ]; then
         printf "%b\n" "\n ${Warn} ${YellowBG} 由于喵版云崽依赖${plugin_name}，检测到目前没有安装，开始自动下载 ${Font} \n"
         git clone --depth=1 "$repo_url" "$plugin_root"
@@ -64,7 +69,7 @@ sync_plugin() {
 update_yunzai
 sync_plugin "https://gitee.com/TimeRainStarSky/Yunzai-genshin" "genshin" true
 sync_plugin "https://github.com/yoimiya-kokomi/miao-plugin" "miao-plugin" true
-sync_plugin "https://gitee.com/Ctrlcvs/xiaoyao-cvs-plugin" "xiaoyao-cvs-plugin" true
+sync_plugin "https://github.com/ctrlcvs/xiaoyao-cvs-plugin" "xiaoyao-cvs-plugin" true
 pnpm i -P
 
 set -e
