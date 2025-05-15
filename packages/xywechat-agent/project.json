@@ -1,0 +1,30 @@
+{
+    "name": "xywechat-agent",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "sourceRoot": "packages/xywechat-agent/src",
+    "projectType": "library",
+    "targets": {
+        "build": {
+            "executor": "@nx/js:swc",
+            "outputs": ["{options.outputPath}"],
+            "options": {
+                "outputPath": "dist/packages/xywechat-agent",
+                "main": "packages/xywechat-agent/src/index.ts",
+                "tsConfig": "packages/xywechat-agent/tsconfig.lib.json",
+                "assets": ["packages/xywechat-agent/*.md"]
+            }
+        },
+        "lint": {
+            "executor": "@nx/eslint:lint",
+            "outputs": ["{options.outputFile}"]
+        },
+        "test": {
+            "executor": "@nx/vite:test",
+            "outputs": ["{options.reportsDirectory}"],
+            "options": {
+                "reportsDirectory": "../../coverage/packages/xywechat-agent"
+            }
+        }
+    },
+    "tags": []
+}

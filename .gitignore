@@ -6,3 +6,4 @@ logs/
 tmp/
 .nx/cache
 target/
+robot_stat.json
