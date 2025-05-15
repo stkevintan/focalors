@@ -200,7 +200,7 @@ export class XYWechatBot implements AsyncService {
                     const data = await this.client.message.syncMessage();
                     const messages = data?.AddMsgs || [];
                     for (const message of messages) {
-                        void this.botMessage.processMessage(message);
+                        await this.botMessage.createMessage(message);
                     }
                     await new Promise((resolve) => setTimeout(resolve, 500));
                 } catch (e: any) {

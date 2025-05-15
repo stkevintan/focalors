@@ -1,5 +1,5 @@
 import { createLogger } from "@focalors/logger";
-import assert from "assert";
+import { EventEmitter } from "stream";
 import { inject } from "tsyringe";
 import { parseXml } from "../utils/xml";
 import { Tool } from "../wechat-client/tool";
@@ -150,23 +150,28 @@ export type Message =
 
 const logger = createLogger("BotMessage");
 
+export interface Profile {
+    wxid: string;
+    nickname: string;
+}
 export class MessageParser {
-    private _wxid: string | null = null;
-
+    private profile?: Profile;
     get wxid(): string {
-        if (!this._wxid) {
+        if (!this.profile?.wxid) {
             throw new Error("Wechat ID not set");
         }
-        return this._wxid;
+        return this.profile.wxid;
     }
 
     constructor(
         @inject(MessageDB) private messageDB: MessageDB,
         @inject(Tool) private tool: Tool
-    ) {}
+    ) {
+        this.notify.setMaxListeners(0);
+    }
 
-    updateProfile(wxid: string): void {
-        this._wxid = wxid;
+    updateProfile(profile: Profile): void {
+        this.profile = profile;
     }
 
     private normMessage(raw: RawMessage): BaseMessage {
@@ -184,7 +189,7 @@ export class MessageParser {
         };
         // Handle messages sent by the bot to a group chat
         if (
-            message.FromWxid === this._wxid &&
+            message.FromWxid === this.wxid &&
             message.ToWxid?.endsWith("@chatroom")
         ) {
             // 由于是自己发送的消息，所以对于自己来说，From和To是反的
@@ -221,8 +226,25 @@ export class MessageParser {
         }
         return message;
     }
+    private notify = new EventEmitter({
+        captureRejections: true,
+    });
 
-    async processMessage(raw: RawMessage): Promise<Message | null> {
+    async createMessage(raw: RawMessage): Promise<void> {
+        const message = await this.processMessage(raw);
+        if (!message) {
+            logger.debug("bad message: %O", raw);
+            return;
+        }
+        this.notify.emit("message", message);
+    }
+
+    on(event: "message", listener: (message: Message) => void): () => void {
+        this.notify.on(event, listener);
+        return () => this.notify.off(event, listener);
+    }
+
+    private async processMessage(raw: RawMessage): Promise<Message | null> {
         const message = this.normMessage(raw);
         // Trigger different events based on message type
         switch (message.MsgType) {
