@@ -14,8 +14,16 @@ export class WechatClient {
         return this.client.wxid;
     }
 
+    set wxid(value: string | undefined) {
+        this.client.wxid = value;
+    }
+
     get nickname(): string | undefined {
         return this.client.nickname;
+    }
+
+    set nickname(value: string | undefined) {
+        this.client.nickname = value;
     }
 
     constructor(

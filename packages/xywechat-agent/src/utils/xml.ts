@@ -25,6 +25,8 @@ export function parseXml(xml: string): XMLElement {
 }
 
 export class XMLElement {
+    static Void = new XMLElement(undefined);
+
     constructor(private obj: any) {}
 
     text() {
@@ -39,13 +41,16 @@ export class XMLElement {
     // }
 
     find(tag: string) {
-        if (this.obj == null) return new XMLElement(undefined);
-        if (typeof this.obj !== "object") return new XMLElement(undefined);
+        if (this.obj == null) return XMLElement.Void;
+        if (typeof this.obj !== "object") return XMLElement.Void;
         return new XMLElement(findElement(this.obj, tag));
     }
 
-    get(property?: string) {
-        if (property == null) return this.obj;
+    prop(property: string) {
         return this.obj?.[property];
+    }
+
+    get() {
+        return this.obj;
     }
 }

@@ -10,10 +10,14 @@ export class LoginService {
     constructor(@inject(WechatClientBase) private client: WechatClientBase) {}
 
     async isRunning(): Promise<boolean> {
-        const text = await fetch(this.client.createURL("IsRunning")).then(
-            (res) => res.text()
-        );
-        return text === "OK";
+        try {
+            const text = await fetch(this.client.createURL("IsRunning")).then(
+                (res) => res.text()
+            );
+            return text === "OK";
+        } catch {
+            return false;
+        }
     }
 
     async getQrCode(
@@ -33,30 +37,30 @@ export class LoginService {
             };
         }
 
-        const jsonResp = await this.client.send("GetQRCode", jsonParam);
-        const qrCodeAscii = await new Promise<string>((res) =>
+        const data = await this.client.send("GetQRCode", jsonParam);
+        const qr = await new Promise<string>((res) =>
             qrcode.generate(
-                `http://weixin.qq.com/x/${jsonResp.Uuid}`,
+                `http://weixin.qq.com/x/${data.Uuid}`,
                 undefined,
                 (code) => res(code)
             )
         );
 
-        return [jsonResp.Uuid, jsonResp.QRCodeURL, qrCodeAscii];
+        return [data.Uuid, data.QRCodeURL, qr];
     }
 
     async checkLoginUuid(
         uuid: string
     ): Promise<[ok: true, userInfo: Dict] | [ok: false, expiredTime: number]> {
         const jsonParam = { Uuid: uuid };
-        const jsonResp = await this.client.send("CheckUuid", jsonParam);
+        const data = await this.client.send("CheckUuid", jsonParam);
 
-        if (jsonResp.acctSectResp) {
-            this.client.wxid = jsonResp.acctSectResp.userName;
-            this.client.nickname = jsonResp.acctSectResp.nickName;
-            return [true, jsonResp];
+        if (data.acctSectResp) {
+            this.client.wxid = data.acctSectResp.userName;
+            this.client.nickname = data.acctSectResp.nickName;
+            return [true, data];
         } else {
-            return [false, jsonResp.expiredTime];
+            return [false, data.expiredTime];
         }
     }
 
@@ -76,11 +80,7 @@ export class LoginService {
         if (!wxid && !this.client.wxid) {
             throw new Error("Please login using QRCode first");
         }
-        if (!wxid) {
-            wxid = this.client.wxid!;
-        }
-
-        const jsonParam = { Wxid: wxid };
+        const jsonParam = { Wxid: wxid ?? this.client.wxid };
         const jsonResp = await this.client.send("AwakenLogin", jsonParam);
 
         if (!jsonResp.QrCodeResponse?.Uuid) {
@@ -91,14 +91,11 @@ export class LoginService {
     }
 
     async getCachedInfo(wxid?: string): Promise<Dict> {
-        if (!wxid) {
-            wxid = this.client.wxid!;
-        }
-        if (!wxid) {
-            return {};
+        if (!wxid && !this.client.wxid) {
+            throw new Error("No wxid available");
         }
 
-        const jsonParam = { Wxid: wxid };
+        const jsonParam = { Wxid: wxid ?? this.client.wxid };
         return await this.client.send("GetCachedInfo", jsonParam);
     }
 

@@ -148,7 +148,7 @@ export type Message =
     | FriendRequestMessage
     | InitMessage;
 
-const logger = createLogger("BotMessage");
+const logger = createLogger("MessageParser");
 
 export interface Profile {
     wxid: string;
@@ -201,15 +201,6 @@ export class MessageParser {
         message.IsGroup = message.FromWxid.endsWith("@chatroom");
         if (message.IsGroup) {
             const splited = message.Content.split(":", 1);
-            /*
-                split_content = message["Content"].split(":\n", 1)
-            if len(split_content) > 1:
-                message["Content"] = split_content[1]
-                message["SenderWxid"] = split_content[0]
-            else:  # 绝对是自己发的消息! qwq
-                message["Content"] = split_content[0]
-                message["SenderWxid"] = self.wxid
-                */
             if (splited.length > 1) {
                 message.Content = splited[1].trim();
                 message.SenderWxid = splited[0];
@@ -230,7 +221,7 @@ export class MessageParser {
         captureRejections: true,
     });
 
-    async createMessage(raw: RawMessage): Promise<void> {
+    async handle(raw: RawMessage): Promise<void> {
         const message = await this.processMessage(raw);
         if (!message) {
             logger.debug("bad message: %O", raw);
@@ -276,18 +267,7 @@ export class MessageParser {
             MsgType: MessageType.Text,
             Ats: this.parseAt(base.MsgSource),
         };
-        // save into db
-        /*
-             await self.msg_db.save_message(
-            msg_id=int(message["MsgId"]),
-            sender_wxid=message["SenderWxid"],
-            from_wxid=message["FromWxid"],
-            msg_type=int(message["MsgType"]),
-            content=message["Content"],
-            is_group=message["IsGroup"]
-        )
-        */
-        await this.messageDB.save({
+        this.messageDB.save({
             MsgId: message.MsgId,
             SenderWxid: message.SenderWxid,
             FromWxid: message.FromWxid,
@@ -337,15 +317,17 @@ export class MessageParser {
             baseContent
         );
 
-        await this.messageDB.save({
+        const buffer = await this.downloadImage(baseContent);
+
+        this.messageDB.save({
             MsgId: message.MsgId,
             SenderWxid: message.SenderWxid,
             FromWxid: message.FromWxid,
             MsgType: message.MsgType,
             Content: message.MsgSource,
+            Data: buffer,
             IsGroup: message.IsGroup,
         });
-        const buffer = await this.downloadImage(baseContent);
         if (buffer) {
             message.Content = buffer;
         }
@@ -369,7 +351,7 @@ export class MessageParser {
             message.SenderWxid,
             baseContent
         );
-        await this.messageDB.save({
+        this.messageDB.save({
             MsgId: message.MsgId,
             SenderWxid: message.SenderWxid,
             FromWxid: message.FromWxid,
@@ -385,7 +367,8 @@ export class MessageParser {
             silk = message.raw["ImgBuf"].buffer;
         }
         if (silk) {
-            message.Content = await Tool.silkBase64ToWavByte(silk);
+            // message.Content = await Tool.silkBase64ToWavByte(silk);
+            message.Content = Buffer.from(silk, "base64");
         }
         return message;
     }
@@ -407,17 +390,18 @@ export class MessageParser {
             message.SenderWxid,
             baseContent
         );
-        await this.messageDB.save({
+        const base64 = await this.tool.downloadVideo(message.MsgId);
+        message.Content = Buffer.from(base64, "base64");
+        this.messageDB.save({
             MsgId: message.MsgId,
             SenderWxid: message.SenderWxid,
             FromWxid: message.FromWxid,
             MsgType: message.MsgType,
             Content: baseContent,
+            Data: message.Content,
             IsGroup: message.IsGroup,
         });
 
-        const base64 = await this.tool.downloadVideo(message.MsgId);
-        message.Content = Buffer.from(base64, "base64");
         return message;
     }
 
@@ -430,14 +414,7 @@ export class MessageParser {
             MsgType: MessageType.XML,
             Content: baseContent,
         };
-        await this.messageDB.save({
-            MsgId: message.MsgId,
-            SenderWxid: message.SenderWxid,
-            FromWxid: message.FromWxid,
-            MsgType: message.MsgType,
-            Content: baseContent,
-            IsGroup: message.IsGroup,
-        });
+
         const subType = this.findSubType(baseContent);
         switch (subType) {
             case 57: // quote
@@ -445,9 +422,17 @@ export class MessageParser {
             case 6:
                 return await this.processXMLFileMessage(message);
             case 74: // file is uploading, ignore
-            default:
                 return null;
         }
+        this.messageDB.save({
+            MsgId: message.MsgId,
+            SenderWxid: message.SenderWxid,
+            FromWxid: message.FromWxid,
+            MsgType: message.MsgType,
+            Content: baseContent,
+            IsGroup: message.IsGroup,
+        });
+        return message;
     }
 
     private async processXMLQuoteMessage(
@@ -484,6 +469,15 @@ export class MessageParser {
                 quoteMessage.Content,
                 quoteMessage.Quote
             );
+            this.messageDB.save({
+                MsgId: quoteMessage.MsgId,
+                SenderWxid: quoteMessage.SenderWxid,
+                FromWxid: quoteMessage.FromWxid,
+                MsgType: quoteMessage.MsgType,
+                Content: quoteMessage.Content,
+                Data: Buffer.from(JSON.stringify(quoteMessage.Quote)),
+                IsGroup: quoteMessage.IsGroup,
+            });
             return quoteMessage;
         } catch (error) {
             logger.error(`Error parsing quoted message: %O`, error);
@@ -522,18 +516,21 @@ export class MessageParser {
                 fileMessage.Content
             );
 
-            await this.messageDB.save({
+            fileMessage.File = await this.tool.downloadAttach(
+                fileMessage.AttachId
+            );
+            logger.debug("received File:", fileMessage.File);
+
+            this.messageDB.save({
                 MsgId: fileMessage.MsgId,
                 SenderWxid: fileMessage.SenderWxid,
                 FromWxid: fileMessage.FromWxid,
                 MsgType: fileMessage.MsgType,
                 Content: fileMessage.Content,
+                Data: Buffer.from(JSON.stringify(fileMessage.File)),
                 IsGroup: fileMessage.IsGroup,
             });
 
-            fileMessage.File = await this.tool.downloadAttach(
-                fileMessage.AttachId
-            );
             return fileMessage;
         } catch (error) {
             logger.error(`Error downloading file: %O`, error);
@@ -552,7 +549,7 @@ export class MessageParser {
 
         try {
             const root = parseXml(message.Content);
-            message.SubType = root.get("type") ?? "";
+            message.SubType = root.prop("type") ?? "";
         } catch (error) {
             logger.error(`Error parsing system message: %O`, error);
         }
@@ -560,28 +557,26 @@ export class MessageParser {
             case "pat":
                 // pat pat
                 return await this.processSystemPatMessage(message);
-                break;
             case "ClientCheckGetExtInfo":
                 return null;
-            default:
-                return message;
         }
-        // await this.messageDB.save({
-        //     MsgId: message.MsgId,
-        //     SenderWxid: message.SenderWxid,
-        //     FromWxid: message.FromWxid,
-        //     MsgType: message.MsgType,
-        //     Content: message.Content,
-        //     IsGroup: message.IsGroup,
-        // });
+        this.messageDB.save({
+            MsgId: message.MsgId,
+            SenderWxid: message.SenderWxid,
+            FromWxid: message.FromWxid,
+            MsgType: message.MsgType,
+            Content: message.Content,
+            IsGroup: message.IsGroup,
+        });
 
-        // logger.info(
-        //     `收到系统消息: 消息ID:%s 来自:%s 发送人:%s 内容:%s`,
-        //     message.MsgId,
-        //     message.FromWxid,
-        //     message.SenderWxid,
-        //     message.Content
-        // );
+        logger.info(
+            `收到系统消息: 消息ID:%s 来自:%s 发送人:%s 内容:%s`,
+            message.MsgId,
+            message.FromWxid,
+            message.SenderWxid,
+            message.Content
+        );
+        return message;
     }
 
     private async processSystemPatMessage(
@@ -612,7 +607,7 @@ export class MessageParser {
                 patMessage.Patted,
                 patMessage.PatSuffix
             );
-            await this.messageDB.save({
+            this.messageDB.save({
                 MsgId: patMessage.MsgId,
                 SenderWxid: patMessage.SenderWxid,
                 FromWxid: patMessage.FromWxid,
@@ -647,8 +642,8 @@ export class MessageParser {
         try {
             const root = parseXml(content);
             const voiceElement = root.find("voicemsg");
-            const voiceUrl = voiceElement.get("voiceurl");
-            const length = voiceElement.get("length");
+            const voiceUrl = voiceElement.prop("voiceurl");
+            const length = voiceElement.prop("length");
             if (voiceUrl && length) {
                 return await this.tool.downloadVoice(msgId, voiceUrl, length);
             }
@@ -662,8 +657,8 @@ export class MessageParser {
         try {
             const root = parseXml(content);
             const imgElement = root.find("img");
-            const aesKey = imgElement.get("aeskey");
-            const cdnmidimgurl = imgElement.get("cdnmidimgurl");
+            const aesKey = imgElement.prop("aeskey");
+            const cdnmidimgurl = imgElement.prop("cdnmidimgurl");
             const base64 = await this.tool.downloadImage(aesKey, cdnmidimgurl);
             return Buffer.from(base64, "base64");
         } catch (error) {

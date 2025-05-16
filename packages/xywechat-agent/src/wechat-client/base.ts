@@ -1,4 +1,4 @@
-import { container, inject, injectable } from "tsyringe";
+import { inject, injectable } from "tsyringe";
 import { XYWechatConfiguration } from "../config";
 import {
     MMTLSError,

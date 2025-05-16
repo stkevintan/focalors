@@ -11,7 +11,12 @@ export class User {
      * @returns - User profile as a dictionary
      * @throws - Error if not logged in
      */
-    async getProfile(wxid?: string): Promise<Record<string, any>> {
+    async getProfile(wxid?: string): Promise<{
+        wxid: string;
+        nickname: string;
+        alias: string;
+        phone: string;
+    }> {
         if (!this.client.wxid && !wxid) {
             throw new Error("请先登录"); // UserLoggedOut equivalent
         }
@@ -51,6 +56,9 @@ export class User {
     async isLoggedIn(wxid?: string): Promise<boolean> {
         if (!wxid) {
             wxid = this.client.wxid;
+        }
+        if (!wxid) {
+            return false;
         }
 
         try {
